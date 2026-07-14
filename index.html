@@ -58,7 +58,7 @@
                 <!-- 폴더 섹션 -->
                 <div class="space-y-2">
                     <div class="flex justify-between items-center border-b border-gray-100 pb-1">
-                        <span class="text-xs font-bold text-gray-400">📁 폴더 목록</span>
+                        <span class="text-xs font-bold text-gray-400">📁 폴더</span>
                         <button onclick="openContainerModal('folder')" class="text-xs text-custom-blue hover:text-custom-blue-hover font-bold px-1 cursor-pointer" title="폴더 추가">추가</button>
                     </div>
                     <div id="sidebar-folders" class="space-y-0.5 max-h-44 overflow-y-auto pt-1 w-full overflow-x-hidden"></div>
@@ -585,8 +585,8 @@
             } else {
                 allBtn.className = "w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 block transition-all text-gray-600 font-normal cursor-pointer";
                 if(type === 'folder') titleEl.innerText = `폴더: ${value}`;
-                else if(type === 'playlist') titleEl.innerText = `플리: ${value}`;
-                else if(type === 'tag') titleEl.innerText = `태그 필터: #${value}`;
+                else if(type === 'playlist') titleEl.innerText = `플레이리스트: ${value}`;
+                else if(type === 'tag') titleEl.innerText = `태그: #${value}`;
             }
 
             renderBgmList();
@@ -618,7 +618,7 @@
 
             const playlistBox = document.getElementById('sidebar-playlists');
             playlistBox.innerHTML = '';
-            if(playlists.length === 0) playlistBox.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center">생성된 플리가 없습니다.</p>';
+            if(playlists.length === 0) playlistBox.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center">생성된 플레이리스트가 없습니다.</p>';
             playlists.forEach(p => {
                 const isSelected = (currentFilter.type === 'playlist' && currentFilter.id === p.id);
                 playlistBox.innerHTML += `
@@ -646,7 +646,7 @@
 
             const tagKeys = Object.keys(allTagsMap);
             if(tagKeys.length === 0) {
-                tagContainer.innerHTML = '<span class="text-[11px] text-gray-400 p-1">등록된 태그가 없습니다.</span>';
+                tagContainer.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center">등록된 태그가 없습니다.</span>';
                 return;
             }
 
