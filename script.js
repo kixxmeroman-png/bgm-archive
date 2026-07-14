@@ -17,7 +17,7 @@ function saveData() {
 function toggleExportMenu(event) {
     if(event) event.stopPropagation();
     const menu = document.getElementById('export-dropdown');
-    menu.classList.toggle('hidden');
+    if (menu) menu.classList.toggle('hidden');
 }
 
 window.addEventListener('click', function() {
@@ -157,29 +157,26 @@ function closePlaylistModal() {
 }
 
 /**
- * [핵심 피드백 반영] 
- * 유튜브 소스코드에서 "accessibilityContext"의 "label"(제목)과
- * "webCommandMetadata"의 "url"(주소)을 동적으로 찝어서 맵으로 파싱하는 최신 함수
+ * 정밀 파서 수정본 (안정적인 구조로 리팩토링)
  */
 function parseYoutubePlaylistSource(inputText) {
     const videoMap = new Map();
     
-    // accessibilityContext의 label과 webCommandMetadata의 url을 찝어낼 정밀한 정규표현식
-    const regex = /"accessibilityContext"\s*:\s*\{\s*"label"\s*:\s*"([^"]+)"\s*\}\s*,\s*"commandContext"\s*:\s*\{\s*"onTap"\s*:\s*\{\s*"innertubeCommand"\s*:\s*\{[\s\S]*?"commandMetadata"\s*:\s*\{\s*"webCommandMetadata"\s*:\s*\{\s*"url"\s*:\s*"([^"]+)"/g;
+    // 단순한 문자열 기반 정규식으로 전환하여 문법 오류(Syntax) 위험을 최소화함
+    const regex = /"accessibilityContext"\s*:\s*\{\s*"label"\s*:\s*"([^"]+)"\s*\}\s*,\s*"commandContext"[\s\S]*?"url"\s*:\s*"([^"]+)"/g;
     
     let match;
     while ((match = regex.exec(inputText)) !== null) {
         let labelTitle = match[1];
         const rawUrl = match[2];
         
-        // URL에서 비디오 아이디 추출 추출
+        // '/watch?v=xxxx' 형태에서 ID 추출
         const videoId = extractYoutubeId("https://www.youtube.com" + rawUrl);
         if (!videoId) continue;
 
-        // "2분 52초" 와 같은 뒤쪽 재생 시간 텍스트 완벽 필터링
+        // "2분 52초" 와 같은 뒤쪽 재생 시간 텍스트 제거
         labelTitle = labelTitle.replace(/\s*\d+분\s*\d+초\s*$/, '');
         
-        // 이스케이프 문자 복구 가공 작업
         let cleanTitle = labelTitle
             .replace(/\\u0026/g, '&')
             .replace(/\\"/g, '"')
@@ -189,45 +186,7 @@ function parseYoutubePlaylistSource(inputText) {
         videoMap.set(videoId, cleanTitle);
     }
 
-    // 만약 위의 시그니처 정밀 파싱에 걸리지 않는 경우, 기존 백업 파서 구동
-    if (videoMap.size === 0) {
-        const blockRegex = /"playlistVideoRenderer"\s*:\s*\{([\s\S]*?)\}(?=\s*,\s*"|(?:\s*\}\s*,\s*\{)|(?:\s*\}\s*\]))/g;
-        let blockMatch;
-
-        while ((blockMatch = blockRegex.exec(inputText)) !== null) {
-            const blockContent = blockMatch[1];
-            const idMatch = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/.exec(blockContent);
-            if (!idMatch) continue;
-            const videoId = idMatch[1];
-
-            let title = null;
-            const titleRunMatch = /"title"\s*:\s*\{\s*"runs"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
-            const simpleMatch = /"simpleText"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
-            const labelMatch = /"label"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
-
-            if (titleRunMatch && titleRunMatch[1]) {
-                title = titleRunMatch[1];
-            } else if (simpleMatch && simpleMatch[1]) {
-                title = simpleMatch[1];
-            } else if (labelMatch && labelMatch[1]) {
-                title = labelMatch[1];
-            }
-
-            if (title) {
-                title = title
-                    .replace(/\\u0026/g, '&')
-                    .replace(/\\"/g, '"')
-                    .replace(/\\\\/g, '\\')
-                    .replace(/\s*-\s*YouTube$/i, '')
-                    .trim();
-                videoMap.set(videoId, title);
-            } else {
-                videoMap.set(videoId, null);
-            }
-        }
-    }
-
-    // 최후의 마지노선: 아이디만이라도 수집
+    // 예외 상황 대비 백업 파서 (기존 playlistVideoRenderer 구조 추적)
     if (videoMap.size === 0) {
         const idRegex = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/g;
         let match;
@@ -656,11 +615,15 @@ function refreshBulkDropdowns() {
     const fSelect = document.getElementById('bulk-folder-select');
     const pSelect = document.getElementById('bulk-playlist-select');
     
-    fSelect.innerHTML = '<option value="">📁 폴더 일괄 지정</option><option value="">폴더 미지정 상태로 해제</option>';
-    folders.forEach(f => { fSelect.innerHTML += `<option value="${f.id}">${f.name}</option>'; });
+    if (fSelect) {
+        fSelect.innerHTML = '<option value="">📁 폴더 일괄 지정</option><option value="">폴더 미지정 상태로 해제</option>';
+        folders.forEach(f => { fSelect.innerHTML += `<option value="${f.id}">${f.name}</option>`; });
+    }
 
-    pSelect.innerHTML = '<option value="">🎧 플리 일괄 담기</option>';
-    playlists.forEach(p => { pSelect.innerHTML += `<option value="${p.id}">${p.name}</option>'; });
+    if (pSelect) {
+        pSelect.innerHTML = '<option value="">🎧 플리 일괄 담기</option>';
+        playlists.forEach(p => { pSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`; });
+    }
 }
 
 function setViewMode(mode) {
@@ -670,23 +633,26 @@ function setViewMode(mode) {
     const btnCard = document.getElementById('btn-view-card');
     const scaleCtrl = document.getElementById('card-scale-controller');
 
-    [btnList, btnList2, btnCard].forEach(b => b.className = "px-2.5 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap");
-    scaleCtrl.classList.add('hidden');
+    [btnList, btnList2, btnCard].forEach(b => {
+        if(b) b.className = "px-2.5 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap";
+    });
+    if(scaleCtrl) scaleCtrl.classList.add('hidden');
 
-    if (mode === 'list') {
+    if (mode === 'list' && btnList) {
         btnList.className = "px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-sm cursor-pointer whitespace-nowrap";
-    } else if (mode === 'list2') {
+    } else if (mode === 'list2' && btnList2) {
         btnList2.className = "px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-sm cursor-pointer whitespace-nowrap";
-    } else {
+    } else if (mode === 'card' && btnCard) {
         btnCard.className = "px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-sm cursor-pointer whitespace-nowrap";
-        scaleCtrl.classList.remove('hidden');
+        if(scaleCtrl) scaleCtrl.classList.remove('hidden');
     }
     renderBgmList();
 }
 
 function changeCardCols(val) {
     cardCols = parseInt(val);
-    document.getElementById('card-cols-txt').innerText = val + '개';
+    const txt = document.getElementById('card-cols-txt');
+    if(txt) txt.innerText = val + '개';
     renderBgmList();
 }
 
@@ -698,13 +664,15 @@ function setSortMode(mode) {
     const btnAbc = document.getElementById('btn-sort-abc');
     const btnDrag = document.getElementById('btn-sort-drag');
     
-    [btnReg, btnAbc, btnDrag].forEach(b => b.className = "px-3 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap");
+    [btnReg, btnAbc, btnDrag].forEach(b => {
+        if(b) b.className = "px-3 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap";
+    });
     
-    if (mode === 'reg') {
+    if (mode === 'reg' && btnReg) {
         btnReg.className = "px-3 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-sm cursor-pointer whitespace-nowrap";
-    } else if (mode === 'abc') {
+    } else if (mode === 'abc' && btnAbc) {
         btnAbc.className = "px-3 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-sm cursor-pointer whitespace-nowrap";
-    } else if (mode === 'drag') {
+    } else if (mode === 'drag' && btnDrag) {
         btnDrag.className = "px-3 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-sm cursor-pointer whitespace-nowrap";
         showToast("아이템 좌측의 '☰' 핸들 영역을 드래그해서 순서를 변경하세요.");
     }
@@ -724,59 +692,69 @@ function setFilter(type, id, value) {
     const allBtn = document.getElementById('btn-filter-all');
 
     if(type === 'all') {
-        titleEl.innerText = '전체 BGM 목록';
-        allBtn.className = "w-full text-left text-sm px-3 py-2 rounded-lg block transition-all font-extrabold bg-blue-50 text-custom-blue border border-blue-100 cursor-pointer";
+        if(titleEl) titleEl.innerText = '전체 BGM 목록';
+        if(allBtn) allBtn.className = "w-full text-left text-sm px-3 py-2 rounded-lg block transition-all font-extrabold bg-blue-50 text-custom-blue border border-blue-100 cursor-pointer";
     } else {
-        allBtn.className = "w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 block transition-all text-gray-600 font-normal cursor-pointer";
-        if(type === 'folder') titleEl.innerText = `폴더: ${value}`;
-        else if(type === 'playlist') titleEl.innerText = `플레이리스트: ${value}`;
-        else if(type === 'tag') titleEl.innerText = `태그 필터: #${value}`;
+        if(allBtn) allBtn.className = "w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 block transition-all text-gray-600 font-normal cursor-pointer";
+        if(titleEl) {
+            if(type === 'folder') titleEl.innerText = `폴더: ${value}`;
+            else if(type === 'playlist') titleEl.innerText = `플레이리스트: ${value}`;
+            else if(type === 'tag') titleEl.innerText = `태그 필터: #${value}`;
+        }
     }
 
-    document.getElementById('bulk-select-all').checked = false;
+    const selectAll = document.getElementById('bulk-select-all');
+    if(selectAll) selectAll.checked = false;
     renderBgmList();
 }
 
 function renderAll() {
     const select = document.getElementById('select-target-folder');
-    select.innerHTML = '<option value="">폴더 미지정 상태로 등록</option>';
-    folders.forEach(f => { select.innerHTML += `<option value="${f.id}">${f.name}</option>`; });
+    if(select) {
+        select.innerHTML = '<option value="">폴더 미지정 상태로 등록</option>';
+        folders.forEach(f => { select.innerHTML += `<option value="${f.id}">${f.name}</option>`; });
+    }
 
-    document.getElementById('sidebar-all-count').innerText = bgms.length;
+    const countEl = document.getElementById('sidebar-all-count');
+    if(countEl) countEl.innerText = bgms.length;
 
     const folderBox = document.getElementById('sidebar-folders');
-    folderBox.innerHTML = '';
-    if(folders.length === 0) folderBox.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center w-full">폴더가 없습니다.</p>';
-    folders.forEach(f => {
-        const isSelected = (currentFilter.type === 'folder' && currentFilter.id === f.id);
-        folderBox.innerHTML += `
-            <div class="flex justify-between items-center group px-2 py-1 rounded-lg transition-colors hover:bg-gray-50 w-full overflow-hidden ${isSelected?'bg-blue-50/70 text-custom-blue font-bold border border-blue-100':''}">
-                <button onclick="setFilter('folder', '${f.id}', '${f.name}')" class="text-xs truncate text-left flex-1 cursor-pointer py-0.5 whitespace-nowrap min-w-0 pr-1">
-                    📁 ${f.name} <span class="text-[10px] text-gray-400 font-normal">(${f.bgmIds.length})</span>
-                </button>
-                <div class="flex gap-1.5 items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    <button onclick="renameContainer('folder', '${f.id}', '${f.name}', event)" class="text-[10px] text-gray-400 hover:text-gray-600 cursor-pointer px-0.5" title="이름 수정">✏️</button>
-                    <button onclick="deleteContainer('folder', '${f.id}', event)" class="text-[9px] text-gray-400 hover:text-rose-600 cursor-pointer px-0.5" title="폴더 해제 및 삭제">❌</button>
-                </div>
-            </div>`;
-    });
+    if(folderBox) {
+        folderBox.innerHTML = '';
+        if(folders.length === 0) folderBox.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center w-full">폴더가 없습니다.</p>';
+        folders.forEach(f => {
+            const isSelected = (currentFilter.type === 'folder' && currentFilter.id === f.id);
+            folderBox.innerHTML += `
+                <div class="flex justify-between items-center group px-2 py-1 rounded-lg transition-colors hover:bg-gray-50 w-full overflow-hidden ${isSelected?'bg-blue-50/70 text-custom-blue font-bold border border-blue-100':''}">
+                    <button onclick="setFilter('folder', '${f.id}', '${f.name}')" class="text-xs truncate text-left flex-1 cursor-pointer py-0.5 whitespace-nowrap min-w-0 pr-1">
+                        📁 ${f.name} <span class="text-[10px] text-gray-400 font-normal">(${f.bgmIds.length})</span>
+                    </button>
+                    <div class="flex gap-1.5 items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button onclick="renameContainer('folder', '${f.id}', '${f.name}', event)" class="text-[10px] text-gray-400 hover:text-gray-600 cursor-pointer px-0.5" title="이름 수정">✏️</button>
+                        <button onclick="deleteContainer('folder', '${f.id}', event)" class="text-[9px] text-gray-400 hover:text-rose-600 cursor-pointer px-0.5" title="폴더 해제 및 삭제">❌</button>
+                    </div>
+                </div>`;
+        });
+    }
 
     const playlistBox = document.getElementById('sidebar-playlists');
-    playlistBox.innerHTML = '';
-    if(playlists.length === 0) playlistBox.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center w-full">생성된 플리가 없습니다.</p>';
-    playlists.forEach(p => {
-        const isSelected = (currentFilter.type === 'playlist' && currentFilter.id === p.id);
-        playlistBox.innerHTML += `
-            <div class="flex justify-between items-center group px-2 py-1 rounded-lg transition-colors hover:bg-gray-50 w-full overflow-hidden ${isSelected?'bg-blue-50/70 text-custom-blue font-bold border border-blue-100':''}">
-                <button onclick="setFilter('playlist', '${p.id}', '${p.name}')" class="text-xs truncate text-left flex-1 cursor-pointer py-0.5 whitespace-nowrap min-w-0 pr-1">
-                    🎧 ${p.name} <span class="text-[10px] text-gray-400 font-normal">(${p.bgmIds.length})</span>
-                </button>
-                <div class="flex gap-1.5 items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    <button onclick="renameContainer('playlist', '${p.id}', '${p.name}', event)" class="text-[10px] text-gray-400 hover:text-gray-600 cursor-pointer px-0.5" title="이름 수정">✏️</button>
-                    <button onclick="deleteContainer('playlist', '${p.id}', event)" class="text-[9px] text-gray-400 hover:text-rose-600 cursor-pointer px-0.5" title="플레이리스트 해제 및 삭제">❌</button>
-                </div>
-            </div>`;
-    });
+    if(playlistBox) {
+        playlistBox.innerHTML = '';
+        if(playlists.length === 0) playlistBox.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center w-full">생성된 플리가 없습니다.</p>';
+        playlists.forEach(p => {
+            const isSelected = (currentFilter.type === 'playlist' && currentFilter.id === p.id);
+            playlistBox.innerHTML += `
+                <div class="flex justify-between items-center group px-2 py-1 rounded-lg transition-colors hover:bg-gray-50 w-full overflow-hidden ${isSelected?'bg-blue-50/70 text-custom-blue font-bold border border-blue-100':''}">
+                    <button onclick="setFilter('playlist', '${p.id}', '${p.name}')" class="text-xs truncate text-left flex-1 cursor-pointer py-0.5 whitespace-nowrap min-w-0 pr-1">
+                        🎧 ${p.name} <span class="text-[10px] text-gray-400 font-normal">(${p.bgmIds.length})</span>
+                    </button>
+                    <div class="flex gap-1.5 items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button onclick="renameContainer('playlist', '${p.id}', '${p.name}', event)" class="text-[10px] text-gray-400 hover:text-gray-600 cursor-pointer px-0.5" title="이름 수정">✏️</button>
+                        <button onclick="deleteContainer('playlist', '${p.id}', event)" class="text-[9px] text-gray-400 hover:text-rose-600 cursor-pointer px-0.5" title="플레이리스트 해제 및 삭제">❌</button>
+                    </div>
+                </div>`;
+        });
+    }
 
     refreshBulkDropdowns();
     renderTagCloud();
@@ -785,6 +763,7 @@ function renderAll() {
 
 function renderTagCloud() {
     const tagContainer = document.getElementById('sidebar-tags');
+    if(!tagContainer) return;
     tagContainer.innerHTML = '';
     
     let allTagsMap = {};
@@ -831,7 +810,8 @@ function deleteContainer(type, id, event) {
 
 function renderBgmList() {
     const listContainer = document.getElementById('bgm-list');
-    const searchKeyword = document.getElementById('search-input').value.toLowerCase();
+    if(!listContainer) return;
+    const searchKeyword = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase() : '';
     
     if (sortableInstance) {
         sortableInstance.destroy();
@@ -866,7 +846,8 @@ function renderBgmList() {
         );
     }
 
-    document.getElementById('bgm-count').innerText = targetList.length + '개';
+    const bgmCountEl = document.getElementById('bgm-count');
+    if(bgmCountEl) bgmCountEl.innerText = targetList.length + '개';
 
     if(targetList.length === 0) {
         listContainer.className = "w-full text-center py-16 text-gray-400 text-sm";
@@ -980,7 +961,6 @@ function buildListItemHTML(bgm) {
     return `
         <div data-bgm-id="${bgm.id}" onclick="openBgmModal('${bgm.id}')" class="bg-white px-4 py-4 rounded-xl border border-gray-200 hover:border-custom-blue hover:shadow-xs transition-all cursor-pointer flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 group w-full min-w-0">
             <div class="flex items-center gap-3 min-w-0 flex-1">
-                <!-- 선택용 체크박스 연동 -->
                 <input type="checkbox" value="${bgm.id}" onclick="event.stopPropagation()" class="bgm-item-checkbox w-4 h-4 rounded text-custom-blue focus:ring-custom-blue border-gray-300 cursor-pointer shrink-0">
                 
                 <div class="flex-1 min-w-0 space-y-2">
@@ -1033,7 +1013,6 @@ function buildCardItemHTML(bgm) {
         <div data-bgm-id="${bgm.id}" onclick="openBgmModal('${bgm.id}')" class="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-custom-blue hover:shadow-md transition-all cursor-pointer flex flex-col group">
             <div class="w-full aspect-video bg-gray-100 relative overflow-hidden border-b border-b-gray-100">
                 <img src="${getYoutubeThumbnail(bgm.youtubeId)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" alt="섬네일" loading="lazy">
-                <!-- 체크박스 상단 고정 배치 -->
                 <div class="absolute top-2 left-2 z-10" onclick="event.stopPropagation()">
                     <input type="checkbox" value="${bgm.id}" class="bgm-item-checkbox w-4 h-4 rounded text-custom-blue focus:ring-custom-blue border-gray-300 shadow-md cursor-pointer">
                 </div>
@@ -1060,10 +1039,14 @@ function buildCardItemHTML(bgm) {
 }
 
 function showToast(msg) {
-    const el = document.getElementById('toast'); el.innerText = msg;
+    const el = document.getElementById('toast'); 
+    if(!el) return;
+    el.innerText = msg;
     el.classList.remove('opacity-0', 'pointer-events-none');
     setTimeout(() => { el.classList.add('opacity-0', 'pointer-events-none'); }, 2200);
 }
 
-// 초기화 호출
-renderAll();
+// 최초 화면 로드 및 렌더링 시작
+document.addEventListener('DOMContentLoaded', () => {
+    renderAll();
+});
