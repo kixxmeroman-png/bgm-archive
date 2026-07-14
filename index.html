@@ -45,9 +45,9 @@
             <p class="text-gray-400 text-xs mt-0.5">유튜브 링크를 폴더와 플레이리스트로 관리하는 아카이브</p>
         </div>
         <div class="flex items-center gap-2">
-            <!-- 재생목록 추가 버튼 색상 BGM 추가와 동일하게 변경 (bg-custom-blue 적용) -->
+            <!-- 플레이리스트 추가 버튼 색상 -->
             <button onclick="openPlaylistModal()" class="bg-custom-blue hover:bg-custom-blue-hover text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap">
-                🔗 재생목록 추가
+                재생목록 추가
             </button>
             <button onclick="openAddModal()" class="bg-custom-blue hover:bg-custom-blue-hover text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap">
                 BGM 추가
@@ -109,12 +109,11 @@
                 
                 <div class="flex flex-wrap items-center gap-3 self-end xl:self-auto">
                     
-                    <!-- 정렬 순서 선택 필터 -->
+                    <!-- 정렬 메뉴 대대적 수정 (타이틀 삭제, 깔끔한 3종 나열) -->
                     <div class="flex bg-gray-100 p-1 rounded-lg border border-gray-200/50 shrink-0 items-center">
-                        <span class="text-[10px] text-gray-500 font-bold px-2 whitespace-nowrap">정렬</span>
-                        <button id="btn-sort-reg" onclick="setSortMode('reg')" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap">등록순</button>
-                        <button id="btn-sort-abc" onclick="setSortMode('abc')" class="px-2.5 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap">이름순</button>
-                        <button id="btn-sort-drag" onclick="setSortMode('drag')" class="px-2.5 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap" title="마우스로 순서를 직접 끌어당겨 변경합니다.">👇 직접 정렬</button>
+                        <button id="btn-sort-reg" onclick="setSortMode('reg')" class="px-3 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap">등록순</button>
+                        <button id="btn-sort-abc" onclick="setSortMode('abc')" class="px-3 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap">이름순</button>
+                        <button id="btn-sort-drag" onclick="setSortMode('drag')" class="px-3 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap" title="마우스로 순서를 직접 끌어당겨 변경합니다.">자유 정렬</button>
                     </div>
 
                     <!-- 데이터 내보내기 드롭다운 메뉴 영역 -->
@@ -122,7 +121,6 @@
                         <button onclick="toggleExportMenu(event)" id="btn-export" class="bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap">
                             데이터 내보내기 <span class="text-[9px]">▼</span>
                         </button>
-                        <!-- 드롭다운 레이어 -->
                         <div id="export-dropdown" class="hidden absolute right-0 mt-1.5 window bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden py-1">
                             <button onclick="downloadBackupJSON()" class="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer">
                                 📄 JSON 백업 파일
@@ -160,7 +158,7 @@
 
     </div>
 
-    <!-- [팝업] 유튜브 재생목록 일괄 등록 팝업 (색상 테마를 파란색으로 통일) -->
+    <!-- [팝업] 유튜브 재생목록 일괄 등록 팝업 -->
     <div id="playlist-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-xl max-w-lg w-full overflow-hidden shadow-xl border border-gray-100 p-6 space-y-4">
             <div class="flex justify-between items-center border-b border-gray-100 pb-2">
@@ -460,7 +458,7 @@
             return match ? match[1] : null;
         }
 
-        // [수정 적용] 안정적인 유튜브 RSS 피드 데이터를 통해 재생목록을 개별 등록하는 차단 우회 기능
+        // [수정 및 보강] 프록시 차단 대비 다중 우회(Failover) 기능이 탑재된 재생목록 등록 함수
         async function fetchAndAddPlaylist() {
             const urlInput = document.getElementById('playlist-url-input');
             const btn = document.getElementById('playlist-btn');
@@ -475,49 +473,84 @@
             btn.disabled = true;
             btn.innerText = "분석 및 연동 중...";
 
-            try {
-                // 1. 유튜브 공식 RSS 피드 주소 생성 (API 키 미필요)
-                const youtubeRssUrl = `https://youtube.com{playlistId}`;
-                
-                // 2. AllOrigins 무료 프록시 서버를 통해 CORS 우회 호출
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(youtubeRssUrl)}`;
-                const response = await fetch(proxyUrl);
-                
-                if (!response.ok) throw new Error("프록시 통신 실패");
-                
-                const responseData = await response.json();
-                const xmlString = responseData.contents;
+            // 유튜브 공식 RSS 주소 생성
+            const youtubeRssUrl = `https://youtube.com{playlistId}`;
+            
+            // 사용할 우회 프록시 서버 목록 (첫 번째가 막히면 두 번째로 자동 시도)
+            const proxyServers = [
+                `https://corsproxy.io{encodeURIComponent(youtubeRssUrl)}`,
+                `https://api.allorigins.win/get?url=${encodeURIComponent(youtubeRssUrl)}`
+            ];
 
-                // 3. 브라우저 내장 XML 파서로 데이터 파싱 처리
+            let xmlString = null;
+            let isAllOrigins = false;
+
+            // 프록시 서버 순회하며 데이터 가져오기 시도
+            for (let i = 0; i < proxyServers.length; i++) {
+                try {
+                    const response = await fetch(proxyServers[i]);
+                    if (!response.ok) continue; // 현재 프록시 실패 시 다음 프록시로 이동
+                    
+                    const responseData = await response.json().catch(() => null);
+                    
+                    // AllOrigins 프록시는 응답 구조가 JSON 내부contents에 담겨 오는 특성이 있음
+                    if (proxyServers[i].includes('allorigins')) {
+                        if (responseData && responseData.contents) {
+                            xmlString = responseData.contents;
+                            isAllOrigins = true;
+                            break;
+                        }
+                    } else {
+                        // 일반 프록시(corsproxy)는 텍스트나 json을 그대로 반환할 수 있음
+                        // corsproxy.io 응답이 json 데이터 형식이 아닐 경우를 대비해 텍스트로 재시도 처리
+                        if (responseData && typeof responseData === 'object' && responseData.contents) {
+                            xmlString = responseData.contents;
+                        } else {
+                            const textResponse = await fetch(proxyServers[i]);
+                            xmlString = await textResponse.text();
+                        }
+                        if (xmlString && xmlString.includes('<feed')) {
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`${i+1}번째 프록시 연결 실패, 다음 프록시를 시도합니다.`, e);
+                }
+            }
+
+            // 모든 프록시가 실패했을 경우 예외 처리
+            if (!xmlString) {
+                alert("현재 오픈 프록시 서버들이 모두 만료되었거나 트래픽이 초과되었습니다.\n잠시 후 다시 시도해 주시거나, 유튜브 재생목록의 '공개 설정'을 다시 확인해 주세요.");
+                btn.disabled = false;
+                btn.innerText = "불러오기";
+                return;
+            }
+
+            try {
+                // 브라우저 내장 XML 파서로 데이터 분석
                 const parser = new DOMParser();
                 const xmlDoc = parser.parseFromString(xmlString, "text/xml");
-                
-                // 영상 한 줄 한 줄은 <entry> 태그로 묶여 있습니다.
                 const entries = xmlDoc.getElementsByTagName("entry");
 
                 if (!entries || entries.length === 0) {
-                    alert("재생목록 내에 등록된 BGM 영상이 감지되지 않거나, 비공개 재생목록입니다.\n유튜브에서 재생목록의 공개 설정을 '전체공개' 또는 '일부공개'로 변경해 주세요.");
+                    alert("재생목록 데이터를 파싱할 수 없거나 비공개 목록입니다.\n유튜브에서 재생목록이 '공개' 혹은 '일부공개'로 되어있는지 확인해 주세요.");
                     return;
                 }
 
                 let addedCount = 0;
 
-                // 4. 추출한 RSS entries 배열 순회하며 개별 BGM으로 등록
+                // 추출한 영상 배열 순회하며 개별 BGM 등록
                 for (let i = 0; i < entries.length; i++) {
                     const entry = entries[i];
                     
-                    // 유튜브 영상 ID 추출 (<yt:videoId> 태그 탐색)
+                    // 영상 ID 추출 (yt:videoId 태그 탐색)
                     let videoId = "";
-                    const videoIdNode = entry.getElementsByTagName("yt:videoId")[0];
+                    const videoIdNode = entry.getElementsByTagName("yt:videoId")[0] || entry.getElementsByTagName("videoId")[0];
                     if (videoIdNode) {
                         videoId = videoIdNode.textContent;
-                    } else {
-                        // 네임스페이스 처리를 대비한 예외 대안 탐색
-                        const idNode = entry.getElementsByTagName("videoId")[0];
-                        if (idNode) videoId = idNode.textContent;
                     }
 
-                    // 영상 제목 추출 (<title> 태그)
+                    // 영상 제목 추출 (title 태그 탐색)
                     let title = "알 수 없는 비디오";
                     const titleNode = entry.getElementsByTagName("title")[0];
                     if (titleNode) {
@@ -525,11 +558,11 @@
                     }
 
                     if (videoId && title) {
-                        // 중복 등록 방지 체크 (동일한 youtubeId가 bgms 배열에 없을 때만 추가)
+                        // 중복 방지 검사 후 등록
                         if (!bgms.some(b => b.youtubeId === videoId)) {
                             const newBgm = {
                                 id: 'bgm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                                youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
+                                youtubeUrl: `https://youtube.com{videoId}`,
                                 youtubeId: videoId,
                                 realTitle: title,
                                 customTitle: title,
@@ -539,7 +572,6 @@
                             };
                             bgms.push(newBgm);
 
-                            // 선택된 타겟 폴더가 있다면 해당 폴더 배열에도 맵핑 추가
                             if (targetFolderId) {
                                 const folder = folders.find(f => f.id === targetFolderId);
                                 if (folder) folder.bgmIds.push(newBgm.id);
@@ -549,10 +581,9 @@
                     }
                 }
 
-                // 5. 결과 알림 및 UI 새로고침 공통 로직 실행
                 if (addedCount > 0) {
                     saveData();
-                    closePlaylistModal(); // 만약 창이 안 닫히면 이 함수명이 본래 코드와 맞는지 체크해 주세요
+                    closePlaylistModal();
                     showToast(`🎉 성공! 재생목록에서 총 ${addedCount}개의 BGM을 일괄 동기화 완료했습니다.`);
                     renderAll();
                 } else {
@@ -561,13 +592,12 @@
 
             } catch (error) {
                 console.error(error);
-                alert("재생목록 로드 중 에러가 발생했습니다. 네트워크 연결 혹은 프록시 서버 상태를 확인해 주세요.");
+                alert("데이터 분석 중 오류가 발생했습니다.");
             } finally {
                 btn.disabled = false;
                 btn.innerText = "불러오기";
             }
         }
-
 
         function openAddModal() {
             document.getElementById('add-modal').classList.remove('hidden');
@@ -799,6 +829,7 @@
             renderBgmList();
         }
 
+        // 깔끔하게 등록순 / 이름순 / 자유 정렬만 선택 및 하이라이트 활성화 처리
         function setSortMode(mode) {
             sortMode = mode;
             localStorage.setItem('box_sort_mode', mode);
@@ -807,14 +838,14 @@
             const btnAbc = document.getElementById('btn-sort-abc');
             const btnDrag = document.getElementById('btn-sort-drag');
             
-            [btnReg, btnAbc, btnDrag].forEach(b => b.className = "px-2.5 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap");
+            [btnReg, btnAbc, btnDrag].forEach(b => b.className = "px-3 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap");
             
             if (mode === 'reg') {
-                btnReg.className = "px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap";
+                btnReg.className = "px-3 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap";
             } else if (mode === 'abc') {
-                btnAbc.className = "px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap";
+                btnAbc.className = "px-3 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap";
             } else if (mode === 'drag') {
-                btnDrag.className = "px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap";
+                btnDrag.className = "px-3 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap";
                 showToast("아이템 좌측의 '☰' 핸들 영역을 드래그해서 순서를 변경하세요.");
             }
             renderBgmList();
@@ -984,13 +1015,13 @@
                 targetList.forEach(bgm => { listContainer.innerHTML += buildCardItemHTML(bgm); });
             }
 
-            // [직접 정렬 드래그 핸들 옵션 지정] 'drag-handle' 클래스가 적용된 삼선(☰)만 드래그 가능하도록 제한
+            // 정렬 드래그 핸들 강제 바인딩 (자유 정렬 시에만 ☰ 영역 드래그 허용)
             if (sortMode === 'drag') {
                 sortableInstance = new Sortable(listContainer, {
                     animation: 200,
                     ghostClass: 'sortable-ghost',
                     dragClass: 'sortable-drag',
-                    handle: '.drag-handle', // 드래그 시작할 요소 핸들 강제 지정 완료!
+                    handle: '.drag-handle', 
                     filter: "input, select, button, iframe, a",
                     preventOnFilter: false,
                     onEnd: function () {
@@ -1060,7 +1091,7 @@
                 <div data-bgm-id="${bgm.id}" onclick="openBgmModal('${bgm.id}')" class="bg-white px-4 py-4 rounded-xl border border-gray-200 hover:border-custom-blue hover:shadow-xs transition-all cursor-pointer flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 group w-full min-w-0">
                     <div class="flex-1 min-w-0 space-y-2">
                         <div class="flex items-center gap-2 flex-wrap min-w-0">
-                            <!-- 드래그 핸들 전용 클래스(drag-handle) 부여 -->
+                            <!-- 직접 정렬(자유 정렬) 모드일 때만 드래그 ☰ 아이콘 노출 -->
                             ${sortMode === 'drag' ? '<span class="text-gray-400 text-base drag-handle px-1 select-none mr-1">☰</span>' : ''}
                             <h3 class="font-bold text-gray-800 text-sm group-hover:text-custom-blue transition-colors truncate max-w-full sm:max-w-[70%]">${bgm.customTitle}</h3>
                             <div class="flex gap-1 flex-wrap">${tagBadges}</div>
@@ -1086,7 +1117,7 @@
             return `
                 <div data-bgm-id="${bgm.id}" onclick="openBgmModal('${bgm.id}')" class="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-custom-blue hover:shadow-md transition-all cursor-pointer flex flex-col group">
                     <div class="w-full aspect-video bg-gray-100 relative overflow-hidden border-b border-b-gray-100">
-                        <img src="${getYoutubeThumbnail(bgm.youtubeId)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" alt="섬네일">
+                        <img src="${getYoutubeThumbnail(bgm.youtubeId)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" alt="섬네일" loading="lazy">
                         <div class="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                             <span class="bg-white text-gray-800 font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center gap-1">
                                 ${sortMode === 'drag' ? '<span class="drag-handle text-xs font-black">☰ 드래그 핸들</span>' : '상세 플레이'}
