@@ -520,7 +520,7 @@
             document.getElementById('bgm-modal').classList.remove('hidden');
 
             const holder = document.getElementById('iframe-player-holder');
-            holder.innerHTML = `<iframe class="w-full h-full" src="https://www.youtube-nocookie.com/embed/${bgm.youtubeId.trim()}?autoplay=1&mute=1&controls=1&rel=0&enablejsapi=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+            holder.innerHTML = `<iframe class="w-full h-full" src="https://www.youtube-nocookie.com/embed/${bgm.youtubeId.trim()}?autoplay=1&controls=1&rel=0&enablejsapi=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
         }
 
         function refreshModalBelongInfo(bgmId) {
