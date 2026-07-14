@@ -45,7 +45,6 @@
             <p class="text-gray-400 text-xs mt-0.5">유튜브 링크를 폴더와 플레이리스트로 관리하는 아카이브</p>
         </div>
         <div class="flex items-center gap-2">
-            <!-- 플레이리스트 추가 버튼 색상 -->
             <button onclick="openPlaylistModal()" class="bg-custom-blue hover:bg-custom-blue-hover text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap">
                 재생목록 추가
             </button>
@@ -113,7 +112,7 @@
                     <div class="flex bg-gray-100 p-1 rounded-lg border border-gray-200/50 shrink-0 items-center">
                         <button id="btn-sort-reg" onclick="setSortMode('reg')" class="px-3 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap">등록순</button>
                         <button id="btn-sort-abc" onclick="setSortMode('abc')" class="px-3 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap">이름순</button>
-                        <button id="btn-sort-drag" onclick="setSortMode('drag')" class="px-3 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap" title="마우스로 순서를 직접 끌어당겨 변경합니다.">자유 정렬</button>
+                        <button id="btn-sort-drag" onclick="setSortMode('drag')" class="px-3 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap">자유 정렬</button>
                     </div>
 
                     <!-- 데이터 내보내기 드롭다운 메뉴 영역 -->
@@ -174,7 +173,6 @@
                     <p>3. 그 화면에서 <strong class="text-custom-blue">Ctrl + A (전체 선택)</strong> 한 뒤, <strong class="text-custom-blue">Ctrl + C (복사)</strong> 합니다.</p>
                     <p>4. 복사한 내용 전체를 아래 입력란에 <strong class="text-custom-blue">Ctrl + V (붙여넣기)</strong> 하시면 안전하게 모든 영상을 파싱해옵니다.</p>
                 </div>
-                <!-- 대용량 데이터 전송을 원활히 지원하기 위해 textarea -->
                 <textarea id="playlist-url-input" rows="5" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800 font-mono focus:outline-none focus:border-custom-blue mt-2" placeholder="Ctrl + U 화면에서 복사한 복잡한 소스 코드를 이곳에 통째로 붙여넣어 주세요!"></textarea>
             </div>
 
@@ -248,7 +246,7 @@
             <div class="px-5 pt-2.5 pb-4 space-y-2.5 max-h-[40vh] overflow-y-auto">
                 <input type="hidden" id="modal-bgm-id">
                 
-                <!-- 소속/플리 뱃지 라인 -->
+                <!-- 소속/플리 뱃지 라인 및 제외 기능 결합 -->
                 <div id="modal-belong-info" class="text-xs bg-slate-50 border border-slate-200 text-slate-600 rounded-lg p-2.5 space-y-2"></div>
                 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -287,7 +285,7 @@
 
             <!-- 풋터 액션 컨트롤 영역 -->
             <div class="bg-gray-50 px-5 py-3 flex justify-between items-center border-t border-gray-100">
-                <button onclick="deleteBgmFromModal()" class="text-xs bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 px-3 py-2 rounded-lg font-medium cursor-pointer whitespace-nowrap">삭제</button>
+                <button onclick="deleteBgmFromModal()" class="text-xs bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 px-3 py-2 rounded-lg font-medium cursor-pointer whitespace-nowrap">보관함에서 삭제</button>
                 <div class="flex gap-2">
                     <button onclick="closeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs px-4 py-2 rounded-lg font-semibold cursor-pointer whitespace-nowrap">닫기 (정지)</button>
                     <button onclick="saveModalDetails()" class="bg-custom-blue hover:bg-custom-blue-hover text-white text-xs px-4 py-2 rounded-lg font-semibold cursor-pointer shadow-xs whitespace-nowrap">변경사항 저장</button>
@@ -458,29 +456,20 @@
             document.getElementById('playlist-modal').classList.add('hidden');
         }
 
-        // [개선] 유튜브 재생목록 소스코드 파싱 전용 엔진 (videoId와 title 매칭 정밀 필터링)
         function parseYoutubePlaylistSource(inputText) {
             const videoMap = new Map();
-
-            // 1단계: playlistVideoRenderer 블록 단위 확보
             const blockRegex = /"playlistVideoRenderer"\s*:\s*\{([\s\S]*?)\}(?=\s*,\s*"|(?:\s*\}\s*,\s*\{)|(?:\s*\}\s*\]))/g;
             let blockMatch;
 
             while ((blockMatch = blockRegex.exec(inputText)) !== null) {
                 const blockContent = blockMatch[1];
-                
-                // 해당 블록 내 videoId 추출
                 const idMatch = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/.exec(blockContent);
                 if (!idMatch) continue;
                 const videoId = idMatch[1];
 
                 let title = null;
-                
-                // 구조 패턴 A: title.runs[0].text 정합 매칭
                 const titleRunMatch = /"title"\s*:\s*\{\s*"runs"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
-                // 구조 패턴 B: simpleText 정합 매칭
                 const simpleMatch = /"simpleText"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
-                // 구조 패턴 C: accessibility.accessibilityData.label 매칭
                 const labelMatch = /"label"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
 
                 if (titleRunMatch && titleRunMatch[1]) {
@@ -492,21 +481,18 @@
                 }
 
                 if (title) {
-                    // 유니코드 인코딩 엔티티 정제 및 불필요한 테일 단어 삭제
                     title = title
                         .replace(/\\u0026/g, '&')
                         .replace(/\\"/g, '"')
                         .replace(/\\\\/g, '\\')
                         .replace(/\s*-\s*YouTube$/i, '')
                         .trim();
-                    
                     videoMap.set(videoId, title);
                 } else {
                     videoMap.set(videoId, null);
                 }
             }
 
-            // 2단계: 블록 단위 정규식 파싱이 실패할 경우를 대비한 유연한 단독 ID 수집
             if (videoMap.size === 0) {
                 const idRegex = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/g;
                 let match;
@@ -517,11 +503,9 @@
                     }
                 }
             }
-
             return videoMap;
         }
 
-        // 플레이리스트 모달 비동기 처리 함수
         async function fetchAndAddPlaylist() {
             const urlInput = document.getElementById('playlist-url-input');
             const btn = document.getElementById('playlist-btn');
@@ -537,21 +521,16 @@
             btn.innerText = "소스 코드 정밀 파싱 중...";
 
             try {
-                // 업그레이드된 파서 호출
                 const videoMap = parseYoutubePlaylistSource(inputText);
-
                 if (videoMap.size === 0) {
-                    alert("⚠️ 입력한 텍스트에서 비디오 코드를 인식하지 못했습니다.\n'Ctrl + U'로 페이지 소스 전체를 복사했는지 확인해주세요!");
+                    alert("⚠️ 입력한 텍스트에서 비디오 코드를 인식하지 못했습니다.");
                     return;
                 }
 
                 let addedCount = 0;
-
                 for (let [videoId, videoTitle] of videoMap) {
-                    // 중복 검사
                     if (!bgms.some(b => b.youtubeId === videoId)) {
                         const finalTitle = videoTitle || `가져온 BGM (${videoId})`;
-                        
                         const newBgm = {
                             id: 'bgm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                             youtubeUrl: "https://www.youtube.com/watch?v=" + videoId,
@@ -562,7 +541,6 @@
                             tags: [],
                             folderId: targetFolderId || null
                         };
-                        
                         bgms.push(newBgm);
 
                         if (targetFolderId) {
@@ -581,7 +559,6 @@
                 } else {
                     alert("중복된 음원을 제외하고 새로 추가할 비디오가 없습니다.");
                 }
-
             } catch (error) {
                 console.error(error);
                 alert("파싱 중 예기치 못한 에러가 발생했습니다.");
@@ -702,15 +679,62 @@
             holder.innerHTML = `<iframe class="w-full h-full" src="https://www.youtube-nocookie.com/embed/${bgm.youtubeId.trim()}?autoplay=1&controls=1&rel=0&enablejsapi=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
         }
 
+        // [추가] 특정 BGM을 폴더 혹은 플레이리스트에서 개별 '제외'하는 핵심 로직 함수
+        function excludeBgmFromTarget(bgmId, type, targetId, event) {
+            if(event) event.stopPropagation();
+            const bgm = bgms.find(b => b.id === bgmId);
+            if(!bgm) return;
+
+            if(type === 'folder') {
+                if(bgm.folderId === targetId) {
+                    bgm.folderId = null;
+                    const f = folders.find(folder => folder.id === targetId);
+                    if(f) {
+                        f.bgmIds = f.bgmIds.filter(id => id !== bgmId);
+                    }
+                    showToast('폴더에서 BGM이 제외되었습니다.');
+                }
+            } else if(type === 'playlist') {
+                const p = playlists.find(pl => pl.id === targetId);
+                if(p) {
+                    p.bgmIds = p.bgmIds.filter(id => id !== bgmId);
+                    showToast('플레이리스트에서 BGM이 제외되었습니다.');
+                }
+            }
+
+            saveData();
+            
+            // 모달 안에서 동작한 경우 뷰 실시간 갱신 처리
+            if(!document.getElementById('bgm-modal').classList.contains('hidden')) {
+                refreshModalBelongInfo(bgmId);
+            }
+            renderAll();
+        }
+
+        // [개선] 모달창 내 소속정보 표출 시 '제외(X)' 기능 뱃지 버튼 연동 추가
         function refreshModalBelongInfo(bgmId) {
             const bgm = bgms.find(b => b.id === bgmId);
             if(!bgm) return;
             const curFolder = folders.find(f => f.id === bgm.folderId);
             const curPls = playlists.filter(p => p.bgmIds.includes(bgm.id));
             
-            let belongHtml = `<div class="flex items-center gap-1.5 flex-wrap">📌 <b class="text-gray-700">소속 폴더:</b> ${curFolder ? `<span class="bg-gray-100 text-gray-600 text-[11px] px-1.5 py-0.5 rounded border border-gray-200 font-bold">📁 ${curFolder.name}</span>` : '<span class="text-gray-400">없음</span>'}</div>`;
+            let folderBadge = '<span class="text-gray-400">없음</span>';
+            if (curFolder) {
+                folderBadge = `
+                    <span class="inline-flex items-center gap-1 bg-blue-50 text-custom-blue text-[11px] px-2 py-0.5 rounded border border-blue-200 font-bold">
+                        📁 ${curFolder.name}
+                        <button onclick="excludeBgmFromTarget('${bgm.id}', 'folder', '${curFolder.id}', event)" class="hover:text-rose-500 font-extrabold cursor-pointer text-xs ml-1" title="이 폴더에서 이 BGM만 제외">✕</button>
+                    </span>`;
+            }
             
-            let plBadgesHtml = curPls.map(p => `<span class="bg-gray-100 text-gray-600 text-[11px] px-1.5 py-0.5 rounded border border-gray-200 font-bold">${p.name}</span>`).join(' ');
+            let belongHtml = `<div class="flex items-center gap-1.5 flex-wrap">📌 <b class="text-gray-700">소속 폴더:</b> ${folderBadge}</div>`;
+            
+            let plBadgesHtml = curPls.map(p => `
+                <span class="inline-flex items-center gap-1 bg-purple-50 text-purple-700 text-[11px] px-2 py-0.5 rounded border border-purple-200 font-bold">
+                    🎧 ${p.name}
+                    <button onclick="excludeBgmFromTarget('${bgm.id}', 'playlist', '${p.id}', event)" class="hover:text-rose-500 font-extrabold cursor-pointer text-xs ml-1" title="이 플레이리스트에서 이 BGM만 제외">✕</button>
+                </span>`).join(' ');
+                
             belongHtml += `<div class="flex items-center gap-1.5 flex-wrap">🎵 <b class="text-gray-700">포함 플레이리스트:</b> ${plBadgesHtml || '<span class="text-gray-400">없음</span>'}</div>`;
             
             document.getElementById('modal-belong-info').innerHTML = belongHtml;
@@ -956,24 +980,18 @@
             });
         }
 
-        // [개선] 폴더 삭제와 플레이리스트 삭제의 역할을 명확히 구분
         function deleteContainer(type, id, event) {
             if(event) event.stopPropagation();
             
             if(type === 'folder') {
                 if(!confirm('선택하신 폴더 그룹을 해제하고 정말로 삭제하시겠습니까?\n(폴더 내부의 BGM 음악 파일들은 유실되지 않고 안전하게 보존됩니다.)')) return;
-                
-                // 폴더 구조 목록에서 제거
                 folders = folders.filter(f => f.id !== id);
-                // 해당 폴더의 소속이었던 BGM들의 folderId 필드를 null로 원상 복구 (해제)
                 bgms.forEach(b => { 
                     if(b.folderId === id) b.folderId = null; 
                 });
                 showToast('📁 폴더가 해제되었으며 내부 BGM은 유지됩니다.');
             } else if(type === 'playlist') {
                 if(!confirm('선택하신 플레이리스트를 해제하고 정말로 삭제하시겠습니까?\n(플레이리스트 내부의 BGM 음악 파일들은 유실되지 않고 안전하게 보존됩니다.)')) return;
-                
-                // 플레이리스트 제거 (BGM들과의 관계 목록 매핑만 사라짐)
                 playlists = playlists.filter(p => p.id !== id);
                 showToast('🎧 플레이리스트가 해제되었으며 내부 BGM은 유지됩니다.');
             }
@@ -1097,6 +1115,7 @@
             `;
         }
 
+        // [개선] 특정 그룹 뷰 필터일 때만 '제외' 버튼을 노출하도록 분기 렌더링
         function buildListItemHTML(bgm) {
             const tagBadges = bgm.tags.map(t => `<span class="bg-gray-100 text-gray-600 text-[10px] font-semibold px-2 py-0.5 rounded whitespace-nowrap">#${t}</span>`).join(' ');
             const folderObj = folders.find(f => f.id === bgm.folderId);
@@ -1113,6 +1132,26 @@
             }
 
             const escapedTitle = bgm.customTitle.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+
+            // 동적 분기 버튼 생성
+            let actionBtnHtml = '';
+            if (currentFilter.type === 'folder') {
+                actionBtnHtml = `
+                    <button onclick="excludeBgmFromTarget('${bgm.id}', 'folder', '${currentFilter.id}', event)" title="이 폴더에서 제외" class="bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-xs px-2.5 py-1 rounded transition-colors font-medium cursor-pointer whitespace-nowrap min-w-[45px] text-center">
+                        제외
+                    </button>`;
+            } else if (currentFilter.type === 'playlist') {
+                actionBtnHtml = `
+                    <button onclick="excludeBgmFromTarget('${bgm.id}', 'playlist', '${currentFilter.id}', event)" title="이 플레이리스트에서 제외" class="bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-xs px-2.5 py-1 rounded transition-colors font-medium cursor-pointer whitespace-nowrap min-w-[45px] text-center">
+                        제외
+                    </button>`;
+            } else {
+                // 전체 보기, 태그 뷰인 경우에만 영구 삭제 버튼 노출
+                actionBtnHtml = `
+                    <button onclick="deleteBgmDirect('${bgm.id}', '${escapedTitle}', event)" title="보관함에서 즉시 삭제" class="bg-red-50 hover:bg-rose-100 border border-red-200 text-rose-600 text-xs px-2.5 py-1 rounded transition-colors font-medium cursor-pointer whitespace-nowrap min-w-[45px] text-center">
+                        삭제
+                    </button>`;
+            }
 
             return `
                 <div data-bgm-id="${bgm.id}" onclick="openBgmModal('${bgm.id}')" class="bg-white px-4 py-4 rounded-xl border border-gray-200 hover:border-custom-blue hover:shadow-xs transition-all cursor-pointer flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 group w-full min-w-0">
@@ -1134,17 +1173,34 @@
                     <div class="flex items-center gap-2 shrink-0 sm:ml-auto justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100">
                         <div class="flex gap-1 items-center w-[150px] sm:w-[170px]">${buildSelectsHTML(bgm)}</div>
                         <button onclick="copyLink('${bgm.youtubeUrl}', event)" class="bg-gray-100 hover:bg-custom-blue hover:text-white text-gray-600 text-xs px-2.5 py-1 rounded transition-colors font-medium cursor-pointer whitespace-nowrap min-w-[45px] text-center">복사</button>
-                        <!-- 빨간색 텍스트 삭제 버튼 -->
-                        <button onclick="deleteBgmDirect('${bgm.id}', '${escapedTitle}', event)" title="보관함에서 즉시 삭제" class="bg-red-50 hover:bg-rose-100 border border-red-200 text-rose-600 text-xs px-2.5 py-1 rounded transition-colors font-medium cursor-pointer whitespace-nowrap min-w-[45px] text-center">
-                            삭제
-                        </button>
+                        ${actionBtnHtml}
                     </div>
                 </div>`;
         }
 
+        // [개선] 카드 뷰 레이아웃에서도 필터 정보에 따라 '제외' 버튼 표시
         function buildCardItemHTML(bgm) {
             const tagBadges = bgm.tags.map(t => `<span class="bg-gray-50 text-gray-600 text-[10px] font-semibold px-1 py-0.5 rounded border border-gray-100 truncate max-w-[70px] inline-block">#${t}</span>`).join(' ');
             const escapedTitle = bgm.customTitle.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+
+            // 동적 분기 버튼 생성
+            let actionBtnHtml = '';
+            if (currentFilter.type === 'folder') {
+                actionBtnHtml = `
+                    <button onclick="excludeBgmFromTarget('${bgm.id}', 'folder', '${currentFilter.id}', event)" title="이 폴더에서 제외" class="bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-[11px] p-1 rounded cursor-pointer font-medium text-center whitespace-nowrap flex-1 truncate">
+                        제외
+                    </button>`;
+            } else if (currentFilter.type === 'playlist') {
+                actionBtnHtml = `
+                    <button onclick="excludeBgmFromTarget('${bgm.id}', 'playlist', '${currentFilter.id}', event)" title="이 플레이리스트에서 제외" class="bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-[11px] p-1 rounded cursor-pointer font-medium text-center whitespace-nowrap flex-1 truncate">
+                        제외
+                    </button>`;
+            } else {
+                actionBtnHtml = `
+                    <button onclick="deleteBgmDirect('${bgm.id}', '${escapedTitle}', event)" title="보관함에서 즉시 삭제" class="bg-red-50 hover:bg-rose-100 border border-red-200 text-rose-600 text-[11px] p-1 rounded cursor-pointer font-medium text-center whitespace-nowrap flex-1 truncate">
+                        삭제
+                    </button>`;
+            }
 
             return `
                 <div data-bgm-id="${bgm.id}" onclick="openBgmModal('${bgm.id}')" class="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-custom-blue hover:shadow-md transition-all cursor-pointer flex flex-col group">
@@ -1166,10 +1222,7 @@
                         <div class="pt-2 border-t border-gray-100 flex items-center gap-1 mt-auto w-full">
                             ${buildSelectsHTML(bgm)}
                             <button onclick="copyLink('${bgm.youtubeUrl}', event)" class="bg-gray-50 hover:bg-custom-blue hover:text-white text-gray-500 text-[11px] p-1 rounded cursor-pointer font-medium text-center border border-gray-200 whitespace-nowrap flex-1 truncate">복사</button>
-                            <!-- 빨간색 텍스트 삭제 버튼 -->
-                            <button onclick="deleteBgmDirect('${bgm.id}', '${escapedTitle}', event)" title="보관함에서 즉시 삭제" class="bg-red-50 hover:bg-rose-100 border border-red-200 text-rose-600 text-[11px] p-1 rounded cursor-pointer font-medium text-center whitespace-nowrap flex-1 truncate">
-                                삭제
-                            </button>
+                            ${actionBtnHtml}
                         </div>
                     </div>
                 </div>`;
