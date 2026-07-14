@@ -45,9 +45,6 @@
             <p class="text-gray-400 text-xs mt-0.5">유튜브 링크를 폴더와 플레이리스트로 관리하는 아카이브</p>
         </div>
         <div class="flex items-center gap-2">
-            <button onclick="openPlaylistModal()" class="bg-custom-blue hover:bg-custom-blue-hover text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-sm cursor-pointer whitespace-nowrap">
-                재생목록 추가
-            </button>
             <button onclick="openAddModal()" class="bg-custom-blue hover:bg-custom-blue-hover text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-sm cursor-pointer whitespace-nowrap">
                 BGM 추가
             </button>
@@ -175,37 +172,6 @@
             <div id="bgm-list" class="flex-1 max-h-[700px] overflow-y-auto pr-1"></div>
         </main>
 
-    </div>
-
-    <!-- [팝업] 유튜브 재생목록 일괄 등록 팝업 -->
-    <div id="playlist-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 hidden">
-        <div class="bg-white rounded-xl max-w-lg w-full overflow-hidden shadow-xl border border-gray-100 p-6 space-y-4">
-            <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-                <h3 class="text-lg font-bold text-custom-blue">유튜브 재생목록 일괄 등록 (웹페이지 소스 방식)</h3>
-                <button onclick="closePlaylistModal()" class="text-gray-400 hover:text-gray-600 text-sm cursor-pointer">✕</button>
-            </div>
-            
-            <div class="space-y-1">
-                <label class="block text-xs font-bold text-gray-500">가져오는 방법 안내</label>
-                <div class="bg-blue-50 text-[11px] text-gray-600 p-3 rounded-lg leading-relaxed space-y-1">
-                    <p>1. 등록을 원하는 유튜브 재생목록 페이지를 엽니다.</p>
-                    <p>2. 키보드에서 <strong class="text-custom-blue">Ctrl + U</strong>를 누르면 새로운 탭에 복잡한 소스 코드 화면이 나타납니다.</p>
-                    <p>3. 그 화면에서 <strong class="text-custom-blue">Ctrl + A (전체 선택)</strong> 한 뒤, <strong class="text-custom-blue">Ctrl + C (복사)</strong> 합니다.</p>
-                    <p>4. 복사한 내용 전체를 아래 입력란에 <strong class="text-custom-blue">Ctrl + V (붙여넣기)</strong> 하시면 안전하게 모든 영상을 파싱해옵니다.</p>
-                </div>
-                <textarea id="playlist-url-input" rows="5" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800 font-mono focus:outline-none focus:border-custom-blue mt-2" placeholder="Ctrl + U 화면에서 복사한 복잡한 소스 코드를 이곳에 통째로 붙여넣어 주세요!"></textarea>
-            </div>
-
-            <div>
-                <label class="block text-xs font-bold text-gray-500 mb-1">소속 폴더 설정 (선택)</label>
-                <select id="playlist-target-folder" class="w-full bg-gray-50 border border-gray-200 rounded-md p-2 text-xs text-gray-800 focus:outline-none"></select>
-            </div>
-
-            <div class="flex justify-end gap-2 pt-2 border-t border-gray-100">
-                <button onclick="closePlaylistModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs px-4 py-2 rounded-lg font-semibold cursor-pointer">취소</button>
-                <button onclick="fetchAndAddPlaylist()" id="playlist-btn" class="bg-custom-blue hover:bg-custom-blue-hover text-white text-xs px-4 py-2 rounded-lg font-semibold cursor-pointer min-w-[100px] text-center">불러오기</button>
-            </div>
-        </div>
     </div>
 
     <!-- [팝업 1] BGM 일괄 추가 팝업 -->
@@ -462,136 +428,6 @@
             saveData();
             closeContainerModal();
             renderAll();
-        }
-
-        function openPlaylistModal() {
-            const select = document.getElementById('playlist-target-folder');
-            select.innerHTML = '<option value="">폴더 미지정 상태로 등록</option>';
-            folders.forEach(f => { select.innerHTML += `<option value="${f.id}">${f.name}</option>`; });
-            document.getElementById('playlist-url-input').value = '';
-            document.getElementById('playlist-modal').classList.remove('hidden');
-        }
-
-        function closePlaylistModal() {
-            document.getElementById('playlist-modal').classList.add('hidden');
-        }
-
-        function parseYoutubePlaylistSource(inputText) {
-            const videoMap = new Map();
-            const blockRegex = /"playlistVideoRenderer"\s*:\s*\{([\s\S]*?)\}(?=\s*,\s*"|(?:\s*\}\s*,\s*\{)|(?:\s*\}\s*\]))/g;
-            let blockMatch;
-
-            while ((blockMatch = blockRegex.exec(inputText)) !== null) {
-                const blockContent = blockMatch[1];
-                const idMatch = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/.exec(blockContent);
-                if (!idMatch) continue;
-                const videoId = idMatch[1];
-
-                let title = null;
-                const titleRunMatch = /"title"\s*:\s*\{\s*"runs"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
-                const simpleMatch = /"simpleText"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
-                const labelMatch = /"label"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
-
-                if (titleRunMatch && titleRunMatch[1]) {
-                    title = titleRunMatch[1];
-                } else if (simpleMatch && simpleMatch[1]) {
-                    title = simpleMatch[1];
-                } else if (labelMatch && labelMatch[1]) {
-                    title = labelMatch[1];
-                }
-
-                if (title) {
-                    title = title
-                        .replace(/\\u0026/g, '&')
-                        .replace(/\\"/g, '"')
-                        .replace(/\\\\/g, '\\')
-                        .replace(/\s*-\s*YouTube$/i, '')
-                        .trim();
-                    videoMap.set(videoId, title);
-                } else {
-                    videoMap.set(videoId, null);
-                }
-            }
-
-            if (videoMap.size === 0) {
-                const idRegex = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/g;
-                let match;
-                while ((match = idRegex.exec(inputText)) !== null) {
-                    const videoId = match[1];
-                    if (!videoMap.has(videoId)) {
-                        videoMap.set(videoId, null);
-                    }
-                }
-            }
-
-            return videoMap;
-        }
-
-        async function fetchAndAddPlaylist() {
-            const urlInput = document.getElementById('playlist-url-input');
-            const btn = document.getElementById('playlist-btn');
-            const targetFolderId = document.getElementById('playlist-target-folder').value;
-            const inputText = urlInput.value.trim();
-
-            if (!inputText) {
-                alert("유튜브 재생목록 소스코드를 입력해주세요!");
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerText = "소스 코드 정밀 파싱 중...";
-
-            try {
-                const videoMap = parseYoutubePlaylistSource(inputText);
-
-                if (videoMap.size === 0) {
-                    alert("⚠️ 입력한 텍스트에서 비디오 코드를 인식하지 못했습니다.\n'Ctrl + U'로 페이지 소스 전체를 복사했는지 확인해주세요!");
-                    return;
-                }
-
-                let addedCount = 0;
-
-                for (let [videoId, videoTitle] of videoMap) {
-                    if (!bgms.some(b => b.youtubeId === videoId)) {
-                        const finalTitle = videoTitle || `가져온 BGM (${videoId})`;
-                        
-                        const newBgm = {
-                            id: 'bgm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                            youtubeUrl: "https://www.youtube.com/watch?v=" + videoId,
-                            youtubeId: videoId,
-                            realTitle: finalTitle,
-                            customTitle: finalTitle,  
-                            memo: "",                
-                            tags: [],
-                            folderId: targetFolderId || null
-                        };
-                        
-                        bgms.push(newBgm);
-
-                        if (targetFolderId) {
-                            const folder = folders.find(f => f.id === targetFolderId);
-                            if (folder) folder.bgmIds.push(newBgm.id);
-                        }
-                        addedCount++;
-                    }
-                }
-
-                if (addedCount > 0) {
-                    saveData();
-                    closePlaylistModal();
-                    showToast(`🎉 성공! 재생목록에서 총 ${addedCount}개의 BGM을 추가했습니다.`);
-                    renderAll();
-                } else {
-                    alert("중복된 음원을 제외하고 새로 추가할 비디오가 없습니다.");
-                }
-
-            } catch (error) {
-                console.error(error);
-                alert("파싱 중 예기치 못한 에러가 발생했습니다.");
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "불러오기";
-            }
         }
 
         function openAddModal() {
