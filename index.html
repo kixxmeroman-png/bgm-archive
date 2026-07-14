@@ -37,7 +37,7 @@
             <p class="text-gray-400 text-xs mt-0.5">유튜브 링크를 폴더와 플레이리스트로 관리하는 아카이브</p>
         </div>
         <button onclick="openAddModal()" class="bg-custom-blue hover:bg-custom-blue-hover text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap">
-            BGM 일괄 추가하기
+            BGM 추가
         </button>
     </header>
 
@@ -58,7 +58,7 @@
                 <!-- 폴더 섹션 -->
                 <div class="space-y-2">
                     <div class="flex justify-between items-center border-b border-gray-100 pb-1">
-                        <span class="text-xs font-bold text-gray-400">📁 폴더</span>
+                        <span class="text-xs font-bold text-gray-400">📁 폴더 목록</span>
                         <button onclick="openContainerModal('folder')" class="text-xs text-custom-blue hover:text-custom-blue-hover font-bold px-1 cursor-pointer" title="폴더 추가">추가</button>
                     </div>
                     <div id="sidebar-folders" class="space-y-0.5 max-h-44 overflow-y-auto pt-1 w-full overflow-x-hidden"></div>
@@ -94,10 +94,22 @@
                 </div>
                 
                 <div class="flex flex-wrap items-center gap-3 self-end sm:self-auto">
-                    <!-- 데이터 백업 다운로드 버튼 -->
-                    <button onclick="downloadBackupData()" class="bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap" title="전체 데이터를 JSON 파일로 백업합니다.">
-                        데이터 백업
-                    </button>
+                    
+                    <!-- 데이터 내보내기 드롭다운 메뉴 영역 -->
+                    <div class="relative inline-block text-left">
+                        <button onclick="toggleExportMenu(event)" id="btn-export" class="bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                            데이터 내보내기 <span class="text-[9px]">▼</span>
+                        </button>
+                        <!-- 드롭다운 레이어 -->
+                        <div id="export-dropdown" class="hidden absolute right-0 mt-1.5 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden py-1">
+                            <button onclick="downloadBackupJSON()" class="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer">
+                                📄 JSON 백업 파일
+                            </button>
+                            <button onclick="downloadBackupCSV()" class="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100 cursor-pointer">
+                                📊 CSV 파일 (엑셀용)
+                            </button>
+                        </div>
+                    </div>
 
                     <!-- 카드 크기 조절기 -->
                     <div id="card-scale-controller" class="hidden flex items-center gap-2 bg-gray-50 px-2.5 py-1.5 rounded-lg border border-gray-200">
@@ -212,7 +224,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-bold text-gray-400 mb-1">메모</label>
-                        <textarea id="modal-memo" rows="2" class="w-full bg-gray-50 border border-gray-200 text-xs p-2 rounded-lg focus:outline-none focus:border-custom-blue text-gray-600" placeholder="상황 가이드 메모 작성"></textarea>
+                        <textarea id="modal-memo" rows="2" class="w-full bg-gray-50 border border-gray-200 text-xs p-2 rounded-lg focus:outline-none focus:border-custom-blue text-gray-600" placeholder="메모 작성"></textarea>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-400 mb-1">태그 (쉼표로 분리)</label>
@@ -250,8 +262,21 @@
             localStorage.setItem('box_playlists', JSON.stringify(playlists));
         }
 
-        // 백업 내려받기 기능 추가
-        function downloadBackupData() {
+        // 내보내기 드롭다운 토글 기능
+        function toggleExportMenu(event) {
+            if(event) event.stopPropagation();
+            const menu = document.getElementById('export-dropdown');
+            menu.classList.toggle('hidden');
+        }
+
+        // 외부 영역 클릭 시 내보내기 드롭다운 닫기 이벤트 리스너 추가
+        window.addEventListener('click', function() {
+            const menu = document.getElementById('export-dropdown');
+            if(menu) menu.classList.add('hidden');
+        });
+
+        // 1. 기존 JSON 백업 파일 내려받기
+        function downloadBackupJSON() {
             if (bgms.length === 0 && folders.length === 0 && playlists.length === 0) {
                 showToast("백업할 데이터가 비어 있습니다.");
                 return;
@@ -272,7 +297,57 @@
             downloadAnchor.click();
             downloadAnchor.remove();
 
-            showToast("보관함 데이터 백업을 다운로드했습니다!");
+            showToast("보관함 데이터 JSON 백업 완!");
+        }
+
+        // 2. CSV 파일 내보내기 기능 신규 추가
+        function downloadBackupCSV() {
+            if (bgms.length === 0) {
+                showToast("내보낼 BGM 데이터가 없습니다.");
+                return;
+            }
+
+            // 헤더 정의
+            const headers = ["이름(지정명)", "원제(유튜브)", "유튜브 링크", "소속 폴더", "메모", "태그 목록"];
+            
+            // 데이터 행 빌드
+            const rows = bgms.map(bgm => {
+                const folderObj = folders.find(f => f.id === bgm.folderId);
+                const folderName = folderObj ? folderObj.name : "없음";
+                const tagsStr = bgm.tags.join(', ');
+                
+                return [
+                    bgm.customTitle,
+                    bgm.realTitle,
+                    bgm.youtubeUrl,
+                    folderName,
+                    bgm.memo || "",
+                    tagsStr
+                ];
+            });
+
+            // CSV 데이터 조합 및 이스케이프(따옴표 처리) 적용
+            const csvContent = [headers, ...rows].map(row => 
+                row.map(value => {
+                    const escaped = String(value).replace(/"/g, '""'); // 내부 쌍따옴표 이스케이프
+                    return `"${escaped}"`; // 전체 값을 쌍따옴표로 래핑
+                }).join(',')
+            ).join('\r\n');
+
+            // 엑셀에서 열었을 때 한글이 깨지지 않도록 BOM(Byte Order Mark) 삽입 추가
+            const BOM = "\uFEFF";
+            const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+            
+            const url = URL.createObjectURL(blob);
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", url);
+            downloadAnchor.setAttribute("download", `bgm_manager_list_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            URL.revokeObjectURL(url);
+
+            showToast("BGM 리스트가 CSV 파일로 변환되었습니다!");
         }
 
         function extractYoutubeId(url) {
@@ -439,7 +514,7 @@
             });
 
             const pSelect = document.getElementById('modal-select-playlist');
-            pSelect.innerHTML = '<option value="">+ 플레이리스트에 바로 등록</option>';
+            pSelect.innerHTML = '<option value="">+ 플레이리스트 등록</option>';
             playlists.forEach(p => { pSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`; });
 
             document.getElementById('bgm-modal').classList.remove('hidden');
@@ -586,7 +661,7 @@
                 allBtn.className = "w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 block transition-all text-gray-600 font-normal cursor-pointer";
                 if(type === 'folder') titleEl.innerText = `폴더: ${value}`;
                 else if(type === 'playlist') titleEl.innerText = `플레이리스트: ${value}`;
-                else if(type === 'tag') titleEl.innerText = `태그: #${value}`;
+                else if(type === 'tag') titleEl.innerText = `태그 필터: #${value}`;
             }
 
             renderBgmList();
@@ -601,7 +676,7 @@
 
             const folderBox = document.getElementById('sidebar-folders');
             folderBox.innerHTML = '';
-            if(folders.length === 0) folderBox.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center">폴더가 없습니다.</p>';
+            if(folders.length === 0) folderBox.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center w-full">폴더가 없습니다.</p>';
             folders.forEach(f => {
                 const isSelected = (currentFilter.type === 'folder' && currentFilter.id === f.id);
                 folderBox.innerHTML += `
@@ -618,7 +693,7 @@
 
             const playlistBox = document.getElementById('sidebar-playlists');
             playlistBox.innerHTML = '';
-            if(playlists.length === 0) playlistBox.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center">생성된 플레이리스트가 없습니다.</p>';
+            if(playlists.length === 0) playlistBox.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center w-full">생성된 플리가 없습니다.</p>';
             playlists.forEach(p => {
                 const isSelected = (currentFilter.type === 'playlist' && currentFilter.id === p.id);
                 playlistBox.innerHTML += `
@@ -637,6 +712,7 @@
             renderBgmList();
         }
 
+        // 1. 태그가 없을 때 문구를 가운데 정렬(text-center)로 일관성 있게 구성
         function renderTagCloud() {
             const tagContainer = document.getElementById('sidebar-tags');
             tagContainer.innerHTML = '';
@@ -646,7 +722,7 @@
 
             const tagKeys = Object.keys(allTagsMap);
             if(tagKeys.length === 0) {
-                tagContainer.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center">등록된 태그가 없습니다.</span>';
+                tagContainer.innerHTML = '<p class="text-[11px] text-gray-400 p-2 text-center w-full">등록된 태그가 없습니다.</p>';
                 return;
             }
 
@@ -679,7 +755,6 @@
             const searchKeyword = document.getElementById('search-input').value.toLowerCase();
             listContainer.innerHTML = '';
 
-            // 중요: 뷰 모드 전환 시 이전 모드의 그리드 열 인라인 스타일이 간섭하지 않도록 매번 깨끗이 날려줍니다.
             listContainer.style.gridTemplateColumns = '';
 
             let targetList = [];
@@ -715,11 +790,9 @@
                 listContainer.className = "space-y-3 w-full block";
                 targetList.forEach(bgm => { listContainer.innerHTML += buildListItemHTML(bgm); });
             } else if (viewMode === 'list2') {
-                // 리스트 2줄 뷰에 격자형 그리드 클래스 주입
                 listContainer.className = "grid grid-cols-1 lg:grid-cols-2 gap-4 w-full";
                 targetList.forEach(bgm => { listContainer.innerHTML += buildListItemHTML(bgm); });
             } else {
-                // 카드뷰 정렬 및 동적 열 개수(인라인 스타일) 매칭
                 listContainer.className = `grid gap-4 w-full`;
                 listContainer.style.gridTemplateColumns = `repeat(${cardCols}, minmax(0, 1fr))`;
                 targetList.forEach(bgm => { listContainer.innerHTML += buildCardItemHTML(bgm); });
@@ -761,7 +834,6 @@
             return `
                 <div onclick="openBgmModal('${bgm.id}')" class="bg-white px-4 py-4 rounded-xl border border-gray-200 hover:border-custom-blue hover:shadow-xs transition-all cursor-pointer flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 group w-full min-w-0">
                     <div class="flex-1 min-w-0 space-y-2">
-                        <!-- 제목과 태그 매칭 라인 -->
                         <div class="flex items-center gap-2 flex-wrap min-w-0">
                             <h3 class="font-bold text-gray-800 text-sm group-hover:text-custom-blue transition-colors truncate max-w-full sm:max-w-[70%]">${bgm.customTitle}</h3>
                             <div class="flex gap-1 flex-wrap">${tagBadges}</div>
@@ -769,14 +841,12 @@
                         
                         <p class="text-[11px] text-gray-400 truncate">원본: ${bgm.realTitle}</p>
                         
-                        <!-- 소속 그룹 무채색 1줄 라인 정렬 -->
                         <div class="flex flex-wrap items-center gap-1.5">
                             ${groupBadgesHtml || '<span class="text-[10px] text-gray-300">지정된 소속 그룹 없음</span>'}
                         </div>
                         
                         ${bgm.memo ? `<p class="text-[11px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100 inline-block truncate max-w-full">💬 ${bgm.memo}</p>` : ''}
                     </div>
-                    <!-- 우측 제어 드롭다운 및 복사 버튼 영역 -->
                     <div class="flex items-center gap-2 shrink-0 sm:ml-auto justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100">
                         <div class="flex gap-1 items-center w-[150px] sm:w-[170px]">${buildSelectsHTML(bgm)}</div>
                         <button onclick="copyLink('${bgm.youtubeUrl}', event)" class="bg-gray-100 hover:bg-custom-blue hover:text-white text-gray-600 text-xs px-2.5 py-1 rounded transition-colors font-medium cursor-pointer whitespace-nowrap min-w-[45px] text-center">복사</button>
@@ -797,7 +867,6 @@
                     <div class="p-2.5 flex-1 flex flex-col justify-between gap-2 min-w-0">
                         <div class="min-w-0 space-y-1">
                             <h3 class="font-bold text-gray-800 text-xs group-hover:text-custom-blue truncate">${bgm.customTitle}</h3>
-                            <!-- 카드뷰 내 원본 타이틀 노출 추가 -->
                             <p class="text-[10px] text-gray-400 truncate">원본: ${bgm.realTitle}</p>
                             <div class="flex flex-wrap gap-0.5 pt-0.5 overflow-hidden max-h-5">${tagBadges}</div>
                             ${bgm.memo ? `<p class="text-[10px] text-gray-500 bg-gray-50 p-1 rounded border border-gray-100 truncate mt-1">💬 ${bgm.memo}</p>` : ''}
