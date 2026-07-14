@@ -476,29 +476,29 @@
             document.getElementById('playlist-modal').classList.add('hidden');
         }
 
-// [개선] 유튜브 재생목록 소스코드 파싱 전용 엔진 (videoId와 title 매칭 정밀 필터링)
+        // [개선] 유튜브 재생목록 소스코드 파싱 엔진 (유튜브 데이터가 수시로 바뀌어도 작동할 수 있는 유연한 엔진 구축)
         function parseYoutubePlaylistSource(inputText) {
             const videoMap = new Map();
 
-            // 1단계: playlistVideoRenderer 블록 단위 확보
+            // 1단계: "playlistVideoRenderer" JSON 객체 블록을 찾아서 정확한 videoId와 제목 매칭
             const blockRegex = /"playlistVideoRenderer"\s*:\s*\{([\s\S]*?)\}(?=\s*,\s*"|(?:\s*\}\s*,\s*\{)|(?:\s*\}\s*\]))/g;
             let blockMatch;
 
             while ((blockMatch = blockRegex.exec(inputText)) !== null) {
                 const blockContent = blockMatch[1];
                 
-                // 해당 블록 내 videoId 추출
+                // 해당 객체 블록 안의 videoId 구하기
                 const idMatch = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/.exec(blockContent);
                 if (!idMatch) continue;
                 const videoId = idMatch[1];
 
                 let title = null;
                 
-                // 구조 패턴 A: title.runs[0].text 정합 매칭
+                // 제목 추출 우선 순위 1 (runs 객체 방식)
                 const titleRunMatch = /"title"\s*:\s*\{\s*"runs"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
-                // 구조 패턴 B: simpleText 정합 매칭
+                // 제목 추출 우선 순위 2 (simpleText 방식)
                 const simpleMatch = /"simpleText"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
-                // 구조 패턴 C: accessibility.accessibilityData.label 매칭
+                // 제목 추출 우선 순위 3 (접근성 라벨 방식)
                 const labelMatch = /"label"\s*:\s*"([\s\S]*?)"/.exec(blockContent);
 
                 if (titleRunMatch && titleRunMatch[1]) {
@@ -510,7 +510,7 @@
                 }
 
                 if (title) {
-                    // 유니코드 인코딩 엔티티 정제 및 불필요한 테일 단어 삭제
+                    // 유니코드 변환 엔티티 및 HTML 이스케이프 이모지 등 정제
                     title = title
                         .replace(/\\u0026/g, '&')
                         .replace(/\\"/g, '"')
@@ -524,7 +524,7 @@
                 }
             }
 
-            // 2단계: 블록 단위 정규식 파싱이 실패할 경우를 대비한 유연한 단독 ID 수집
+            // 2단계: 소스코드 난독화 등으로 1단계가 실패할 시에 예비용 정규식 단독 비디오 수집
             if (videoMap.size === 0) {
                 const idRegex = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/g;
                 let match;
@@ -539,7 +539,7 @@
             return videoMap;
         }
 
-        // 플레이리스트 모달 비동기 처리 함수
+        // 플레이리스트 모달 비동기 처리 함수 (정밀 복구 완료)
         async function fetchAndAddPlaylist() {
             const urlInput = document.getElementById('playlist-url-input');
             const btn = document.getElementById('playlist-btn');
@@ -555,7 +555,6 @@
             btn.innerText = "소스 코드 정밀 파싱 중...";
 
             try {
-                // 업그레이드된 파서 호출
                 const videoMap = parseYoutubePlaylistSource(inputText);
 
                 if (videoMap.size === 0) {
@@ -929,7 +928,7 @@
             showToast(`선택 항목 중 ${count}개의 음원을 [${targetP.name}]에 추가 완료했습니다.`);
         }
 
-        // [신규] 다중 체크 항목들을 대상으로 일괄 삭제 처리 함수
+        // 다중 체크 항목들을 대상으로 일괄 삭제 처리 함수
         function applyBulkDelete() {
             const checkboxes = document.querySelectorAll('.bgm-item-checkbox:checked');
             if (checkboxes.length === 0) {
@@ -962,10 +961,10 @@
             const pSelect = document.getElementById('bulk-playlist-select');
             
             fSelect.innerHTML = '<option value="">📁 폴더 일괄 지정</option><option value="">폴더 미지정 상태로 해제</option>';
-            folders.forEach(f => { fSelect.innerHTML += `<option value="${f.id}">${f.name}</option>`; });
+            folders.forEach(f => { fSelect.innerHTML += `<option value="${f.id}">${f.name}</option>'; });
 
             pSelect.innerHTML = '<option value="">🎧 플리 일괄 담기</option>';
-            playlists.forEach(p => { pSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`; });
+            playlists.forEach(p => { pSelect.innerHTML += `<option value="${p.id}">${p.name}</option>'; });
         }
 
         function setViewMode(mode) {
