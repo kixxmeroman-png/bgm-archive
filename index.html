@@ -457,135 +457,68 @@
             const match = url.match(reg);
             return match ? match[1] : null;
         }
-        // [최종 수정] 프록시 주소 교정 및 변수 바인딩 오류를 해결한 완성형 함수
+
+
+        // [완전 우회] 프록시 없이 사용자가 복사한 유튜브 데이터 텍스트를 직접 분석하여 개별 등록하는 기능
         async function fetchAndAddPlaylist() {
             const urlInput = document.getElementById('playlist-url-input');
             const btn = document.getElementById('playlist-btn');
-            const rawUrl = urlInput.value.trim();
-            
-            // 기존 getPlaylistIdFromUrl 함수가 오작동할 경우를 대비한 자체 추출 로직 보강
-            let playlistId = "";
-            const regMatch = rawUrl.match(/[&?]list=([^&]+)/);
-            if (regMatch && regMatch[1]) {
-                playlistId = regMatch[1];
-            } else if (typeof getPlaylistIdFromUrl === 'function') {
-                playlistId = getPlaylistIdFromUrl(rawUrl);
-            }
-
             const targetFolderId = document.getElementById('playlist-target-folder').value;
+            const inputText = urlInput.value.trim();
 
-            if (!playlistId || playlistId.includes('{')) {
-                alert("올바른 유튜브 재생목록 주소가 아닙니다. 주소창의 'list=' 뒤에 있는 ID 값이 정확한지 확인해 주세요.");
+            if (!inputText) {
+                alert("유튜브 재생목록 페이지에서 아무 영역이나 전체 드래그(Ctrl+A) 후 복사(Ctrl+C)한 텍스트를 이 창에 붙여넣어 주세요!");
                 return;
             }
 
             btn.disabled = true;
-            btn.innerText = "분석 및 연동 중...";
-
-            // 유튜브 공식 RSS 피드 주소 명확하게 바인딩
-            const youtubeRssUrl = "https://youtube.com" + playlistId;
-            
-            // 완전히 교정된 대체 우회 프록시 서버 목록 (가장 안정적인 순서 배치)
-            const proxyServers = [
-                "https://allorigins.win" + encodeURIComponent(youtubeRssUrl),
-                "https://herokuapp.com" + youtubeRssUrl
-            ];
-
-            let xmlString = null;
-
-            // 프록시 서버 순회하며 RSS XML 데이터 가져오기
-            for (let i = 0; i < proxyServers.length; i++) {
-                try {
-                    const response = await fetch(proxyServers[i]);
-                    if (!response.ok) continue; 
-                    
-                    if (proxyServers[i].includes('allorigins')) {
-                        const responseData = await response.json();
-                        if (responseData && responseData.contents) {
-                            xmlString = responseData.contents;
-                            break;
-                        }
-                    } else {
-                        xmlString = await response.text();
-                        if (xmlString && xmlString.includes('<feed')) {
-                            break;
-                        }
-                    }
-                } catch (e) {
-                    console.warn(`${i+1}번째 프록시 연결 실패, 다음 우회로를 시도합니다.`, e);
-                }
-            }
-
-            // 프록시 전체 차단 시 안전 장치
-            if (!xmlString) {
-                alert("현재 우회 프록시 서버 트래픽이 만료되었습니다.\n연동하려는 유튜브 재생목록의 공개 설정이 '공개' 또는 '일부공개'로 되어있는지 다시 한번 확인 후 잠시 뒤 시도해 주세요.");
-                btn.disabled = false;
-                btn.innerText = "불러오기";
-                return;
-            }
+            btn.innerText = "데이터 텍스트 파싱 중...";
 
             try {
-                // 브라우저 내장 파서로 XML 분석 시작
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(xmlString, "text/xml");
-                const entries = xmlDoc.getElementsByTagName("entry");
+                // 유튜브 페이지의 텍스트 구조에서 영상 ID(v=...)를 검출하는 정규식
+                const videoIdReg = /(?:v=|shorts\/|embed\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/g;
+                let matches = [];
+                let match;
+                
+                while ((match = videoIdReg.exec(inputText)) !== null) {
+                    if (!matches.includes(match[1])) {
+                        matches.push(match[1]);
+                    }
+                }
 
-                if (!entries || entries.length === 0) {
-                    alert("재생목록 내에서 영상을 찾을 수 없거나 비공개 목록입니다.");
+                if (matches.length === 0) {
+                    alert("입력된 텍스트 데이터에서 유효한 유튜브 동영상 식별 코드를 찾아내지 못했습니다.\n재생목록 화면의 글자들을 드래그 복사해서 넣어주세요.");
                     return;
                 }
 
                 let addedCount = 0;
 
-                // 데이터 파싱 및 개별 BGM 아이템 등록 처리
-                for (let i = 0; i < entries.length; i++) {
-                    const entry = entries[i];
-                    
-                    // 영상 고유 ID 추출 (네임스페이스 대응 구조)
-                    let videoId = "";
-                    const ytIdNode = entry.getElementsByTagName("yt:videoId")[0];
-                    const normalIdNode = entry.getElementsByTagName("videoId")[0];
-                    
-                    if (ytIdNode) {
-                        videoId = ytIdNode.textContent;
-                    } else if (normalIdNode) {
-                        videoId = normalIdNode.textContent;
-                    } else {
-                        // 태그 노드 직접 탐색 실패 시 문자열 파싱 처리 대안
-                        const idText = entry.getElementsByTagName("id")[0]?.textContent || "";
-                        if (idText.includes('video:')) {
-                            videoId = idText.split('video:')[1];
+                // 찾아낸 영상 ID 개수만큼 돌며 개별 BGM 등록 처리
+                for (let i = 0; i < matches.length; i++) {
+                    const videoId = matches[i];
+
+                    // 중복 등록 방지
+                    if (!bgms.some(b => b.youtubeId === videoId)) {
+                        // 제목은 API가 없으므로 임시 설정 (이후 재생 시 유튜브 플레이어가 실제 제목을 가져옵니다)
+                        const placeholderTitle = `가져온 BGM 영상 (${videoId})`;
+
+                        const newBgm = {
+                            id: 'bgm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                            youtubeUrl: "https://www.youtube.com/watch?v=" + videoId,
+                            youtubeId: videoId,
+                            realTitle: placeholderTitle,
+                            customTitle: placeholderTitle,
+                            memo: "재생목록 텍스트 파싱 추출본",
+                            tags: [],
+                            folderId: targetFolderId || null
+                        };
+                        bgms.push(newBgm);
+
+                        if (targetFolderId) {
+                            const folder = folders.find(f => f.id === targetFolderId);
+                            if (folder) folder.bgmIds.push(newBgm.id);
                         }
-                    }
-
-                    // 영상 제목 추출
-                    let title = "알 수 없는 비디오";
-                    const titleNode = entry.getElementsByTagName("title")[0];
-                    if (titleNode) {
-                        title = titleNode.textContent;
-                    }
-
-                    if (videoId && title) {
-                        // 중복 검사 후 신규 등록
-                        if (!bgms.some(b => b.youtubeId === videoId)) {
-                            const newBgm = {
-                                id: 'bgm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                                youtubeUrl: "https://youtube.com" + videoId,
-                                youtubeId: videoId,
-                                realTitle: title,
-                                customTitle: title,
-                                memo: "",
-                                tags: [],
-                                folderId: targetFolderId || null
-                            };
-                            bgms.push(newBgm);
-
-                            if (targetFolderId) {
-                                const folder = folders.find(f => f.id === targetFolderId);
-                                if (folder) folder.bgmIds.push(newBgm.id);
-                            }
-                            addedCount++;
-                        }
+                        addedCount++;
                     }
                 }
 
@@ -594,20 +527,21 @@
                     if (typeof closePlaylistModal === 'function') closePlaylistModal();
                     else if (typeof closeAddModal === 'function') closeAddModal();
                     
-                    showToast(`🎉 성공! 재생목록에서 총 ${addedCount}개의 BGM을 일괄 동기화 완료했습니다.`);
+                    showToast(`🎉 성공! 프록시 없이 총 ${addedCount}개의 영상을 개별 BGM으로 일괄 등록했습니다.`);
                     renderAll();
                 } else {
-                    alert("중복된 곡을 제외하고 새로 추가할 곡이 발견되지 않았습니다.");
+                    alert("중복된 영상을 제외하고 새로 추가할 비디오가 발견되지 않았습니다.");
                 }
 
             } catch (error) {
                 console.error(error);
-                alert("데이터 변환 및 가공 중 내부 오류가 발생했습니다.");
+                alert("텍스트 가공 중 일시적 오류가 발생했습니다.");
             } finally {
                 btn.disabled = false;
                 btn.innerText = "불러오기";
             }
         }
+
 
 
         function openAddModal() {
