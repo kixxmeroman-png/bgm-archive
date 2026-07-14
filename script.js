@@ -156,13 +156,8 @@ function closePlaylistModal() {
     document.getElementById('playlist-modal').classList.add('hidden');
 }
 
-/**
- * 정밀 파서 수정본 (안정적인 구조로 리팩토링)
- */
 function parseYoutubePlaylistSource(inputText) {
     const videoMap = new Map();
-    
-    // 단순한 문자열 기반 정규식으로 전환하여 문법 오류(Syntax) 위험을 최소화함
     const regex = /"accessibilityContext"\s*:\s*\{\s*"label"\s*:\s*"([^"]+)"\s*\}\s*,\s*"commandContext"[\s\S]*?"url"\s*:\s*"([^"]+)"/g;
     
     let match;
@@ -170,11 +165,9 @@ function parseYoutubePlaylistSource(inputText) {
         let labelTitle = match[1];
         const rawUrl = match[2];
         
-        // '/watch?v=xxxx' 형태에서 ID 추출
         const videoId = extractYoutubeId("https://www.youtube.com" + rawUrl);
         if (!videoId) continue;
 
-        // "2분 52초" 와 같은 뒤쪽 재생 시간 텍스트 제거
         labelTitle = labelTitle.replace(/\s*\d+분\s*\d+초\s*$/, '');
         
         let cleanTitle = labelTitle
@@ -186,7 +179,6 @@ function parseYoutubePlaylistSource(inputText) {
         videoMap.set(videoId, cleanTitle);
     }
 
-    // 예외 상황 대비 백업 파서 (기존 playlistVideoRenderer 구조 추적)
     if (videoMap.size === 0) {
         const idRegex = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/g;
         let match;
@@ -1046,7 +1038,6 @@ function showToast(msg) {
     setTimeout(() => { el.classList.add('opacity-0', 'pointer-events-none'); }, 2200);
 }
 
-// 최초 화면 로드 및 렌더링 시작
 document.addEventListener('DOMContentLoaded', () => {
     renderAll();
 });
