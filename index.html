@@ -8,6 +8,8 @@
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
     <!-- 테일윈드 CSS 라이브러리 -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 드래그 앤 드롭 정렬을 위한 SortableJS 라이브러리 추가 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -26,6 +28,9 @@
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        /* 드래그 중인 아이템 스타일 */
+        .sortable-ghost { opacity: 0.4; background-color: #eff6ff; border: 2px dashed #3b82f6 !important; }
+        .sortable-drag { opacity: 0.9; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
@@ -36,9 +41,15 @@
             <h1 class="text-2xl font-extrabold text-custom-blue">BGM 아카이브</h1>
             <p class="text-gray-400 text-xs mt-0.5">유튜브 링크를 폴더와 플레이리스트로 관리하는 아카이브</p>
         </div>
-        <button onclick="openAddModal()" class="bg-custom-blue hover:bg-custom-blue-hover text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap">
-            BGM 추가
-        </button>
+        <div class="flex items-center gap-2">
+            <!-- 재생목록 추가 버튼 신규 배치 -->
+            <button onclick="openPlaylistModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap">
+                🔗 재생목록 추가
+            </button>
+            <button onclick="openAddModal()" class="bg-custom-blue hover:bg-custom-blue-hover text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 shadow-xs cursor-pointer whitespace-nowrap">
+                BGM 추가
+            </button>
+        </div>
     </header>
 
     <!-- 메인 레이아웃 -->
@@ -87,21 +98,29 @@
         <!-- 우측 메인 콘텐츠 대시보드 -->
         <main class="flex-1 bg-white p-5 rounded-xl border border-gray-200 shadow-xs min-h-[600px] flex flex-col">
             <!-- 대시보드 제어 헤더 -->
-            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-5 border-b border-gray-100 pb-3">
+            <div class="flex flex-col xl:flex-row xl:justify-between xl:items-center gap-3 mb-5 border-b border-gray-100 pb-3">
                 <div class="flex items-center gap-3">
                     <h2 id="list-title" class="text-lg font-bold text-gray-800">전체 BGM 목록</h2>
                     <span id="bgm-count" class="text-xs bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full font-semibold">0개</span>
                 </div>
                 
-                <div class="flex flex-wrap items-center gap-3 self-end sm:self-auto">
+                <div class="flex flex-wrap items-center gap-3 self-end xl:self-auto">
                     
+                    <!-- 정렬 순서 선택 필터 신규 추가 -->
+                    <div class="flex bg-gray-100 p-1 rounded-lg border border-gray-200/50 shrink-0 items-center">
+                        <span class="text-[10px] text-gray-500 font-bold px-2 whitespace-nowrap">정렬</span>
+                        <button id="btn-sort-reg" onclick="setSortMode('reg')" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap">등록순</button>
+                        <button id="btn-sort-abc" onclick="setSortMode('abc')" class="px-2.5 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap">이름순</button>
+                        <button id="btn-sort-drag" onclick="setSortMode('drag')" class="px-2.5 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap" title="마우스로 순서를 직접 끌어당겨 변경합니다.">👇 직접 정렬</button>
+                    </div>
+
                     <!-- 데이터 내보내기 드롭다운 메뉴 영역 -->
                     <div class="relative inline-block text-left">
                         <button onclick="toggleExportMenu(event)" id="btn-export" class="bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap">
                             데이터 내보내기 <span class="text-[9px]">▼</span>
                         </button>
                         <!-- 드롭다운 레이어 -->
-                        <div id="export-dropdown" class="hidden absolute right-0 mt-1.5 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden py-1">
+                        <div id="export-dropdown" class="hidden absolute right-0 mt-1.5 window bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden py-1">
                             <button onclick="downloadBackupJSON()" class="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer">
                                 📄 JSON 백업 파일
                             </button>
@@ -136,6 +155,32 @@
             <div id="bgm-list" class="flex-1 max-h-[700px] overflow-y-auto pr-1"></div>
         </main>
 
+    </div>
+
+    <!-- [신규 팝업] 유튜브 재생목록 일괄 등록 팝업 -->
+    <div id="playlist-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-xl max-w-lg w-full overflow-hidden shadow-xl border border-gray-100 p-6 space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+                <h3 class="text-lg font-bold text-emerald-600">유튜브 재생목록 일괄 등록</h3>
+                <button onclick="closePlaylistModal()" class="text-gray-400 hover:text-gray-600 text-sm cursor-pointer">✕</button>
+            </div>
+            
+            <div class="space-y-1">
+                <label class="block text-xs font-bold text-gray-500">유튜브 재생목록 주소(URL) 입력</label>
+                <input type="text" id="playlist-url-input" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800 focus:outline-none focus:border-emerald-500 mt-1.5" placeholder="예시) https://www.youtube.com/playlist?list=PLxxxxxxxxxxxx">
+                <p class="text-[10px] text-gray-400 mt-1">※ 전체 공개 또는 일부 공개된 재생목록만 파싱이 가능합니다.</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">소속 폴더 설정 (선택)</label>
+                <select id="playlist-target-folder" class="w-full bg-gray-50 border border-gray-200 rounded-md p-2 text-xs text-gray-800 focus:outline-none"></select>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button onclick="closePlaylistModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs px-4 py-2 rounded-lg font-semibold cursor-pointer">취소</button>
+                <button onclick="fetchAndAddPlaylist()" id="playlist-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded-lg font-semibold cursor-pointer min-w-[100px] text-center">불러오기</button>
+            </div>
+        </div>
     </div>
 
     <!-- [팝업 1] BGM 일괄 추가 팝업 -->
@@ -255,6 +300,8 @@
         let currentFilter = { type: 'all', id: null }; 
         let viewMode = 'list'; 
         let cardCols = 3; 
+        let sortMode = localStorage.getItem('box_sort_mode') || 'reg'; // 정렬 모드 캐싱 추가
+        let sortableInstance = null; // 드래그 앤 드롭 객체 제어용
 
         function saveData() {
             localStorage.setItem('box_bgms', JSON.stringify(bgms));
@@ -410,6 +457,101 @@
             saveData();
             closeContainerModal();
             renderAll();
+        }
+
+        // 재생목록 모달 열기/닫기 제어
+        function openPlaylistModal() {
+            const select = document.getElementById('playlist-target-folder');
+            select.innerHTML = '<option value="">폴더 미지정 상태로 등록</option>';
+            folders.forEach(f => { select.innerHTML += `<option value="${f.id}">${f.name}</option>`; });
+            document.getElementById('playlist-url-input').value = '';
+            document.getElementById('playlist-modal').classList.remove('hidden');
+        }
+
+        function closePlaylistModal() {
+            document.getElementById('playlist-modal').classList.add('hidden');
+        }
+
+        // 유튜브 재생목록 파싱 및 데이터 일괄 자동 추가 함수
+        function getPlaylistIdFromUrl(url) {
+            const reg = /[&?]list=([^&]+)/;
+            const match = url.match(reg);
+            return match ? match[1] : null;
+        }
+
+        async function fetchAndAddPlaylist() {
+            const urlInput = document.getElementById('playlist-url-input');
+            const btn = document.getElementById('playlist-btn');
+            const playlistId = getPlaylistIdFromUrl(urlInput.value.trim());
+            const targetFolderId = document.getElementById('playlist-target-folder').value;
+
+            if (!playlistId) {
+                alert("올바른 유튜브 재생목록 주소가 아닙니다. 주소창에 'list='이 포함되어 있는지 확인해 주세요.");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "가져오는 중...";
+
+            try {
+                // 오픈 소셜 프록시 캐시 우회 기술을 사용해 무인도로 직접 긁어옴
+                const response = await fetch(`https://images-opensocial.googleusercontent.com/gadgets/proxy?container=focused&refresh=600&url=` + encodeURIComponent(`https://www.youtube.com/list_ajax?style=json&action_get_list=1&list=${playlistId}`));
+                
+                if (!response.ok) throw new Error("데이터를 가져오지 못했습니다.");
+                
+                const rawText = await response.text();
+                const data = JSON.parse(rawText.replace(")]}'\n", "")); // JSON 난사 방지용 구글 보안 헤더 제거
+
+                if (!data || !data.video || data.video.length === 0) {
+                    alert("재생목록이 비어있거나, 비공개 상태입니다. (전체/일부공개 변경 필요)");
+                    return;
+                }
+
+                let addedCount = 0;
+
+                data.video.forEach(v => {
+                    const title = v.title;
+                    const videoId = v.encrypted_id;
+
+                    if (title && videoId) {
+                        if (!bgms.some(b => b.youtubeId === videoId)) {
+                            const newBgm = {
+                                id: 'bgm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                                youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
+                                youtubeId: videoId,
+                                realTitle: title,
+                                customTitle: title,
+                                memo: "",
+                                tags: [],
+                                folderId: targetFolderId || null
+                            };
+                            bgms.push(newBgm);
+
+                            if(targetFolderId) {
+                                const folder = folders.find(f => f.id === targetFolderId);
+                                if(folder) folder.bgmIds.push(newBgm.id);
+                            }
+                            addedCount++;
+                        }
+                    }
+                });
+
+                if (addedCount > 0) {
+                    saveData();
+                    closePlaylistModal();
+                    showToast(`🎉 성공! 재생목록에서 총 ${addedCount}개의 곡을 연동 등록했습니다.`);
+                    renderAll();
+                } else {
+                    alert("이미 모두 등록되어 있거나 새로 추가할 곡이 없습니다.");
+                }
+
+            } catch (error) {
+                console.error(error);
+                alert("재생목록을 로드 중 오류가 발생했습니다. 주소가 공개 상태인지 한 번 더 확인바랍니다.");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "불러오기";
+            }
         }
 
         function openAddModal() {
@@ -642,6 +784,28 @@
             renderBgmList();
         }
 
+        // 정렬 모드 전환 기능 구현
+        function setSortMode(mode) {
+            sortMode = mode;
+            localStorage.setItem('box_sort_mode', mode);
+            
+            const btnReg = document.getElementById('btn-sort-reg');
+            const btnAbc = document.getElementById('btn-sort-abc');
+            const btnDrag = document.getElementById('btn-sort-drag');
+            
+            [btnReg, btnAbc, btnDrag].forEach(b => b.className = "px-2.5 py-1 text-xs font-semibold rounded-md text-gray-500 cursor-pointer whitespace-nowrap");
+            
+            if (mode === 'reg') {
+                btnReg.className = "px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap";
+            } else if (mode === 'abc') {
+                btnAbc.className = "px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap";
+            } else if (mode === 'drag') {
+                btnDrag.className = "px-2.5 py-1 text-xs font-semibold rounded-md bg-white text-gray-800 shadow-xs cursor-pointer whitespace-nowrap";
+                showToast("아이템을 직접 드래그해서 배치 순서를 정렬할 수 있습니다.");
+            }
+            renderBgmList();
+        }
+
         function setFilter(type, id, value) {
             currentFilter.type = type;
             currentFilter.id = id;
@@ -709,10 +873,10 @@
             });
 
             renderTagCloud();
-            renderBgmList();
+            // 정렬 모드 스타일 동기화 호출 추가
+            setSortMode(sortMode);
         }
 
-        // 1. 태그가 없을 때 문구를 가운데 정렬(text-center)로 일관성 있게 구성
         function renderTagCloud() {
             const tagContainer = document.getElementById('sidebar-tags');
             tagContainer.innerHTML = '';
@@ -753,8 +917,14 @@
         function renderBgmList() {
             const listContainer = document.getElementById('bgm-list');
             const searchKeyword = document.getElementById('search-input').value.toLowerCase();
-            listContainer.innerHTML = '';
+            
+            // 기존에 물려있던 드래그 정렬 이벤트 인스턴스 파괴
+            if (sortableInstance) {
+                sortableInstance.destroy();
+                sortableInstance = null;
+            }
 
+            listContainer.innerHTML = '';
             listContainer.style.gridTemplateColumns = '';
 
             let targetList = [];
@@ -767,6 +937,14 @@
                 if(pl) targetList = pl.bgmIds.map(bid => bgms.find(b => b.id === bid)).filter(Boolean);
             } else if(currentFilter.type === 'tag') {
                 targetList = bgms.filter(b => b.tags.includes(currentFilter.value));
+            }
+
+            // [정렬 필터 로직 처리]
+            if (sortMode === 'abc') {
+                // 한국어/영어 자음 이름순 정렬
+                targetList.sort((a, b) => a.customTitle.localeCompare(b.customTitle, 'ko'));
+            } else if (sortMode === 'reg') {
+                // 원래 순서대로 (아무 동작 하지 않음)
             }
 
             if(searchKeyword) {
@@ -786,6 +964,7 @@
                 return;
             }
 
+            // 뷰 스타일에 따라 감싸는 클래스 주입
             if (viewMode === 'list') {
                 listContainer.className = "space-y-3 w-full block";
                 targetList.forEach(bgm => { listContainer.innerHTML += buildListItemHTML(bgm); });
@@ -796,6 +975,51 @@
                 listContainer.className = `grid gap-4 w-full`;
                 listContainer.style.gridTemplateColumns = `repeat(${cardCols}, minmax(0, 1fr))`;
                 targetList.forEach(bgm => { listContainer.innerHTML += buildCardItemHTML(bgm); });
+            }
+
+            // [직접 끌어당기기 정렬 활성화]
+            if (sortMode === 'drag') {
+                sortableInstance = new Sortable(listContainer, {
+                    animation: 200,
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag',
+                    // 버튼, 셀렉트박스 등 클릭 시에는 드래그가 차단되도록 핸들 설정
+                    filter: "input, select, button, iframe, a",
+                    preventOnFilter: false,
+                    onEnd: function () {
+                        // 드래그가 완료되었을 때 바뀐 DOM 순서대로 기존 bgms 배열 재정렬 후 메모리에 세이브
+                        const currentOrderIds = Array.from(listContainer.querySelectorAll('[data-bgm-id]')).map(el => el.getAttribute('data-bgm-id'));
+                        
+                        if (currentFilter.type === 'all') {
+                            // 전체보기 상태에서 수정한 경우 -> 전체 리스트 순서 변경
+                            const reorderedBgms = [];
+                            currentOrderIds.forEach(id => {
+                                const found = bgms.find(b => b.id === id);
+                                if (found) reorderedBgms.push(found);
+                            });
+                            // 남은 필터링 밖의 원소들도 순서 보장을 위해 병합
+                            bgms.forEach(b => {
+                                if (!reorderedBgms.some(rb => rb.id === b.id)) reorderedBgms.push(b);
+                            });
+                            bgms = reorderedBgms;
+                        } else if (currentFilter.type === 'playlist') {
+                            // 플레이리스트 내부 필터 드래그 -> 해당 플레이리스트 내 ID 순서 배열 변경
+                            const pl = playlists.find(p => p.id === currentFilter.id);
+                            if (pl) {
+                                pl.bgmIds = currentOrderIds;
+                            }
+                        } else if (currentFilter.type === 'folder') {
+                            // 폴더 정렬 -> 해당 폴더 내의 순서 변경
+                            const folder = folders.find(f => f.id === currentFilter.id);
+                            if (folder) {
+                                folder.bgmIds = currentOrderIds;
+                            }
+                        }
+                        
+                        saveData();
+                        showToast("정렬 순서가 보관함에 즉시 반영되었습니다.");
+                    }
+                });
             }
         }
 
@@ -831,10 +1055,13 @@
                 });
             }
 
+            // 드래그앤드롭 인식을 위해 `data-bgm-id` 애트리뷰트를 최상단에 바인딩
             return `
-                <div onclick="openBgmModal('${bgm.id}')" class="bg-white px-4 py-4 rounded-xl border border-gray-200 hover:border-custom-blue hover:shadow-xs transition-all cursor-pointer flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 group w-full min-w-0">
+                <div data-bgm-id="${bgm.id}" onclick="openBgmModal('${bgm.id}')" class="bg-white px-4 py-4 rounded-xl border border-gray-200 hover:border-custom-blue hover:shadow-xs transition-all cursor-pointer flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 group w-full min-w-0">
                     <div class="flex-1 min-w-0 space-y-2">
                         <div class="flex items-center gap-2 flex-wrap min-w-0">
+                            <!-- 직접 정렬 모드일 때만 움직임 아이콘 렌더링 -->
+                            ${sortMode === 'drag' ? '<span class="text-gray-400 text-sm cursor-grab active:cursor-grabbing mr-1">☰</span>' : ''}
                             <h3 class="font-bold text-gray-800 text-sm group-hover:text-custom-blue transition-colors truncate max-w-full sm:max-w-[70%]">${bgm.customTitle}</h3>
                             <div class="flex gap-1 flex-wrap">${tagBadges}</div>
                         </div>
@@ -857,11 +1084,13 @@
         function buildCardItemHTML(bgm) {
             const tagBadges = bgm.tags.map(t => `<span class="bg-gray-50 text-gray-600 text-[10px] font-semibold px-1 py-0.5 rounded border border-gray-100 truncate max-w-[70px] inline-block">#${t}</span>`).join(' ');
             return `
-                <div onclick="openBgmModal('${bgm.id}')" class="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-custom-blue hover:shadow-md transition-all cursor-pointer flex flex-col group">
+                <div data-bgm-id="${bgm.id}" onclick="openBgmModal('${bgm.id}')" class="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-custom-blue hover:shadow-md transition-all cursor-pointer flex flex-col group">
                     <div class="w-full aspect-video bg-gray-100 relative overflow-hidden border-b border-b-gray-100">
                         <img src="${getYoutubeThumbnail(bgm.youtubeId)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" alt="섬네일">
                         <div class="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span class="bg-white text-gray-800 font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md">상세 플레이</span>
+                            <span class="bg-white text-gray-800 font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md">
+                                ${sortMode === 'drag' ? '☰ 드래그하여 이동' : '상세 플레이'}
+                            </span>
                         </div>
                     </div>
                     <div class="p-2.5 flex-1 flex flex-col justify-between gap-2 min-w-0">
